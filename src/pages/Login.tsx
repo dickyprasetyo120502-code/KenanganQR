@@ -57,27 +57,23 @@ function Login() {
           if (authRes.success) {
             window.location.href = redirectUrl;
           } else {
-            if (authRes.notRegistered) {
-              setEmail(data.email);
-              setIsNotRegistered(true);
-              setMessage(authRes.error || "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!");
-            } else {
-              setIsNotRegistered(false);
-              setMessage(authRes.error || "Gagal masuk menggunakan Google.");
-            }
+            setMessage(authRes.error || "Gagal masuk menggunakan Google.");
           }
         } else {
           setPendingUser({ email: data.email, avatar: data.picture });
           setShowNameModal(true);
         }
-      } catch {
-        setMessage("Login Google gagal. Silakan coba lagi.");
+      } catch (err: unknown) {
+        console.error("Google login error:", err);
+        const errText = err instanceof Error ? err.message : "Silakan coba lagi.";
+        setMessage(`Login Google gagal: ${errText}`);
       } finally {
         setLoading(false);
       }
     },
-    onError: () => {
-      setMessage("Login Google dibatalkan atau gagal.");
+    onError: (errorResponse) => {
+      console.warn("Google OAuth error:", errorResponse);
+      setMessage("Login Google dibatalkan atau popup ditutup. Pastikan Authorized JavaScript Origins di Google Cloud Console telah mengizinkan http://localhost:5173.");
     },
   });
 

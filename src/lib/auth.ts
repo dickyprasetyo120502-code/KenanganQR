@@ -321,16 +321,7 @@ export async function loginWithGoogleOAuth(
         if (updated) finalUser = updated;
       }
     } else {
-      // Jika akun belum pernah didaftarkan dan sedang mencoba login
-      if (mode === "login") {
-        return {
-          success: false,
-          error: "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!",
-          notRegistered: true,
-        };
-      }
-
-      // Mode pendaftaran (register)
+      // Akun belum ada di database: buatkan akun baru secara otomatis dan langsung masuk!
       const { data: newUser, error: insertErr } = await supabase
         .from("users")
         .insert({

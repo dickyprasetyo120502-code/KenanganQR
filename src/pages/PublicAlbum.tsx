@@ -22,6 +22,7 @@ import {
   fetchGalleryFromSupabase,
   addPhotoToSupabase,
   addMessageToSupabase,
+  uploadImageToSupabase,
   isSupabaseConfigured,
 } from "../lib/supabase";
 
@@ -61,6 +62,7 @@ function PublicAlbum() {
   // Upload form
   const [uploaderName, setUploaderName] = useState("");
   const [previewImg, setPreviewImg] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Message form
@@ -79,6 +81,8 @@ function PublicAlbum() {
       return;
     }
 
+    setSelectedFile(file);
+
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === "string") {
@@ -91,16 +95,40 @@ function PublicAlbum() {
   const handleUploadSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!gallery) return;
-    if (!previewImg) {
+    if (!previewImg && !selectedFile) {
       setNotice("Pilih foto yang ingin diunggah.");
       return;
     }
 
     setIsSubmitting(true);
+    setNotice("Sedang mengunggah foto...");
+
+    let photoUrl = "";
+
+    // 1. Unggah ke Cloud Storage (Supabase bucket gallery-media)
+    if (selectedFile && isSupabaseConfigured) {
+      try {
+        const uploadedUrl = await uploadImageToSupabase(
+          selectedFile,
+          `guests/${gallery.id}`
+        );
+        if (uploadedUrl) {
+          photoUrl = uploadedUrl;
+        }
+      } catch (err) {
+        console.warn("Upload ke Supabase Storage gagal, menggunakan fallback:", err);
+      }
+    }
+
+    // 2. Fallback ke previewImg jika storage belum merespons
+    if (!photoUrl) {
+      photoUrl = previewImg;
+    }
+
     const name = uploaderName.trim() || "Tamu";
     const newPhoto: GalleryPhoto = {
       id: Date.now(),
-      url: previewImg,
+      url: photoUrl,
       name: `Momen dari ${name}`,
       uploaderName: name,
     };
@@ -115,7 +143,7 @@ function PublicAlbum() {
     setGallery(updated);
     updateGallery(updated);
 
-    // Save to Supabase if configured
+    // 3. Simpan ke database Supabase secara permanen
     if (isSupabaseConfigured) {
       await addPhotoToSupabase(gallery.id, newPhoto);
     }
@@ -123,8 +151,12 @@ function PublicAlbum() {
     setIsSubmitting(false);
     setShowUploadModal(false);
     setPreviewImg("");
+    setSelectedFile(null);
     setUploaderName("");
-    setNotice("Foto Anda berhasil ditambahkan ke galeri! Terima kasih.");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    setNotice("Foto Anda berhasil disimpan permanen di galeri! Terima kasih.");
     setTimeout(() => setNotice(""), 3500);
   };
 

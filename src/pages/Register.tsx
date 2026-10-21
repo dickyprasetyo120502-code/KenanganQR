@@ -112,14 +112,17 @@ function Register() {
           setPendingGoogleUser({ email: data.email, avatar: data.picture });
           setShowNameModal(true);
         }
-      } catch {
-        setMessage("Gagal mengambil data Google. Silakan coba lagi.");
+      } catch (err: unknown) {
+        console.error("Google register error:", err);
+        const errText = err instanceof Error ? err.message : "Silakan coba lagi.";
+        setMessage(`Pendaftaran Google gagal: ${errText}`);
       } finally {
         setLoading(false);
       }
     },
-    onError: () => {
-      setMessage("Login Google gagal. Silakan coba lagi.");
+    onError: (errorResponse) => {
+      console.warn("Google OAuth error on register:", errorResponse);
+      setMessage("Login Google dibatalkan atau popup ditutup.");
     },
   });
 

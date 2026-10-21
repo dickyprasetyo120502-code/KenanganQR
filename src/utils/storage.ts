@@ -122,6 +122,27 @@ export function updateGallery(updated: Gallery): void {
     }
     localStorage.setItem(GALLERIES_KEY, JSON.stringify(list));
   } catch {
-    // ignore
+    // Jika penyimpanan gagal (misal QuotaExceededError karena ada gambar base64 besar),
+    // simpan versi bersih tanpa dataURL base64 berlebih agar state galeri tetap tersimpan
+    try {
+      const raw = localStorage.getItem(GALLERIES_KEY);
+      const list: Gallery[] = raw ? JSON.parse(raw) : [];
+      const sanitized = {
+        ...updated,
+        photosList: (updated.photosList || []).map((p) => ({
+          ...p,
+          url: p.url.startsWith("data:") ? "" : p.url,
+        })),
+      };
+      const index = list.findIndex((g) => g.id === updated.id);
+      if (index >= 0) {
+        list[index] = sanitized;
+      } else {
+        list.unshift(sanitized);
+      }
+      localStorage.setItem(GALLERIES_KEY, JSON.stringify(list));
+    } catch {
+      // ignore
+    }
   }
 }

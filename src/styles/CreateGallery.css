@@ -244,15 +244,81 @@
   padding-right: 34px;
 }
 
-.create-gallery-date-wrap > svg {
-  position: absolute;
-  left: 12px;
-  color: #8d8069;
-  pointer-events: none;
+.create-gallery-date-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
-.create-gallery-date-wrap input {
+.create-calendar-icon-btn {
+  position: absolute;
+  left: 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #8d8069;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s, background 0.2s;
+  z-index: 2;
+}
+
+.create-calendar-icon-btn:hover {
+  color: #bfa15f;
+  background: #fbf7ee;
+}
+
+.create-gallery-input.create-gallery-date-input {
   padding-left: 38px;
+  padding-right: 110px;
+}
+
+.create-calendar-open-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #fdfaf3;
+  color: #8a7338;
+  border: 1px solid #ebd9b0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+
+.create-calendar-open-btn:hover {
+  background: #bfa15f;
+  color: #ffffff;
+  border-color: #bfa15f;
+  box-shadow: 0 2px 8px rgba(191, 161, 95, 0.25);
+}
+
+.create-hidden-datepicker {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+  bottom: 0;
+  left: 30px;
+}
+
+.create-date-hint {
+  display: block;
+  font-size: 11.5px;
+  color: #7d7363;
+  margin-top: 6px;
+  line-height: 1.4;
 }
 
 .create-gallery-toggles {

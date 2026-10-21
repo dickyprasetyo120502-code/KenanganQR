@@ -284,13 +284,18 @@ function GalleryDetail() {
       const nextPhotos = [...createdPhotos, ...photos];
       setPhotos(nextPhotos);
 
+      const userEmail = user?.email ? user.email.trim().toLowerCase() : gallery.userEmail;
       const updated: Gallery = {
         ...gallery,
+        userEmail,
         photos: nextPhotos.length,
         photosList: nextPhotos,
       };
       setGallery(updated);
       updateGallery(updated);
+      if (isSupabaseConfigured && userEmail) {
+        saveGalleryToSupabase(updated, userEmail);
+      }
       setNotice(`${createdPhotos.length} foto berhasil ditambahkan ke galeri!`);
     } else {
       setNotice("Gagal mengunggah foto.");
@@ -306,8 +311,10 @@ function GalleryDetail() {
     const nextPhotos = photos.filter((item) => item.id !== id);
     setPhotos(nextPhotos);
 
+    const userEmail = user?.email ? user.email.trim().toLowerCase() : gallery.userEmail;
     const updated: Gallery = {
       ...gallery,
+      userEmail,
       photos: nextPhotos.length,
       photosList: nextPhotos,
     };
@@ -316,6 +323,9 @@ function GalleryDetail() {
 
     if (isSupabaseConfigured) {
       await deletePhotoFromSupabase(gallery.id, id);
+      if (userEmail) {
+        saveGalleryToSupabase(updated, userEmail);
+      }
     }
     setNotice("Foto berhasil dihapus.");
   };

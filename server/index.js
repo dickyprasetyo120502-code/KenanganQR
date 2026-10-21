@@ -328,15 +328,7 @@ app.post("/api/auth/google", async (req, res) => {
           });
         }
 
-        // Jika mode login dan akun belum pernah didaftarkan
-        if (mode === "login") {
-          return res.status(404).json({
-            error: "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!",
-            notRegistered: true,
-          });
-        }
-
-        // Mode pendaftaran (register): Buat akun baru
+        // Jika akun belum pernah ada, buatkan otomatis dan langsung login!
         const newUser = await prisma.user.create({
           data: {
             fullName: displayName,
@@ -345,8 +337,8 @@ app.post("/api/auth/google", async (req, res) => {
           },
         });
 
-        return res.status(201).json({
-          message: "Akun Google berhasil didaftarkan!",
+        return res.status(200).json({
+          message: "Login Google berhasil! Akun Anda telah siap.",
           user: formatUserResponse(newUser),
         });
       } catch (prismaErr) {
@@ -366,21 +358,19 @@ app.post("/api/auth/google", async (req, res) => {
       .maybeSingle();
 
     if (existing) {
+      if (avatar && !existing.avatar_url) {
+        await supabase
+          .from("users")
+          .update({ avatar_url: avatar })
+          .eq("id", existing.id);
+      }
       return res.json({
         message: "Login Google berhasil!",
         user: formatUserResponse(existing),
       });
     }
 
-    // Jika mode login dan akun belum pernah didaftarkan
-    if (mode === "login") {
-      return res.status(404).json({
-        error: "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!",
-        notRegistered: true,
-      });
-    }
-
-    // Mode pendaftaran (register): Buat akun baru di Supabase
+    // Buat akun baru di Supabase jika belum ada dan langsung login
     const { data: created, error } = await supabase
       .from("users")
       .insert({
@@ -395,8 +385,8 @@ app.post("/api/auth/google", async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    res.status(201).json({
-      message: "Akun Google berhasil didaftarkan!",
+    res.status(200).json({
+      message: "Login Google berhasil! Akun Anda telah siap.",
       user: formatUserResponse(created),
     });
   } catch (err) {

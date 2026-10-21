@@ -1,5 +1,5 @@
 
-import { useState, useEffect, type ChangeEvent, type FormEvent } from "react";
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from "react";
 import {
   Camera,
   CalendarDays,
@@ -13,6 +13,7 @@ import {
 import logoImage from "../assets/logo.jpg";
 import { saveGalleryToSupabase, isSupabaseConfigured } from "../lib/supabase";
 import { getUser, getGalleries, saveGalleries, type Gallery } from "../utils/storage";
+import { parseAndFormatDate, toISODateString } from "../utils/dateUtils";
 import "../styles/CreateGallery.css";
 
 function CreateGallery() {
@@ -30,6 +31,7 @@ function CreateGallery() {
   const [category, setCategory] =
     useState<Gallery["category"]>("Pernikahan");
   const [date, setDate] = useState("");
+  const datePickerRef = useRef<HTMLInputElement>(null);
   const [cover, setCover] = useState("");
   const [allowGuestUploads, setAllowGuestUploads] = useState(true);
   const [allowGuestMessages, setAllowGuestMessages] = useState(true);
@@ -105,11 +107,7 @@ function CreateGallery() {
         userEmail,
         title: title.trim(),
         category: chosenCategory,
-        date: new Date(`${date}T12:00:00`).toLocaleDateString("id-ID", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        }),
+        date: parseAndFormatDate(date),
         photos: 0,
         messages: 0,
         guests: 0,
@@ -276,16 +274,62 @@ function CreateGallery() {
                   Tanggal Acara
                 </label>
                 <div className="create-gallery-date-wrap">
-                  <CalendarDays size={18} />
+                  <button
+                    type="button"
+                    className="create-calendar-icon-btn"
+                    onClick={() => {
+                      try {
+                        datePickerRef.current?.showPicker?.();
+                      } catch {
+                        datePickerRef.current?.focus();
+                      }
+                    }}
+                    title="Buka Kalender"
+                    aria-label="Pilih dari Kalender"
+                  >
+                    <CalendarDays size={18} />
+                  </button>
                   <input
                     id="gallery-date"
-                    type="date"
-                    className="create-gallery-input"
+                    type="text"
+                    className="create-gallery-input create-gallery-date-input"
+                    placeholder="Ketik tanggal (cth: 24 Oktober 2026) atau klik kalender"
                     value={date}
                     onChange={(event) => setDate(event.target.value)}
                     required
                   />
+                  <button
+                    type="button"
+                    className="create-calendar-open-btn"
+                    onClick={() => {
+                      try {
+                        datePickerRef.current?.showPicker?.();
+                      } catch {
+                        datePickerRef.current?.focus();
+                      }
+                    }}
+                    title="Pilih tanggal dari kalender"
+                  >
+                    📅 Kalender
+                  </button>
+                  {/* Native date picker tersembunyi untuk memunculkan kalender browser */}
+                  <input
+                    ref={datePickerRef}
+                    type="date"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="create-hidden-datepicker"
+                    value={toISODateString(date)}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setDate(parseAndFormatDate(e.target.value));
+                      }
+                    }}
+                  />
                 </div>
+                <span className="create-date-hint">
+                  💡 Anda bisa <strong>mengetik tanggal sendiri</strong> atau klik tombol <strong>Kalender</strong> untuk mencari tanggal.
+                </span>
               </div>
             </div>
 
