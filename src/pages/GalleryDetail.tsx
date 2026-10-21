@@ -51,18 +51,22 @@ function GalleryDetail() {
   const params = new URLSearchParams(window.location.search);
   const queryId = Number(params.get("id"));
 
+  const [user, setUser] = useState<UserProfile | null>(() => getUser());
+
   // Find gallery or fallback
   const [gallery, setGallery] = useState<Gallery>(() => {
+    const userEmail = getUser()?.email;
     if (queryId) {
       const found = getGalleryById(queryId);
       if (found) return found;
     }
-    const all = getGalleries();
-    if (all.length > 0) return all[0];
+    const userGalleries = getGalleries(userEmail);
+    if (userGalleries.length > 0) return userGalleries[0];
 
     // default demo gallery if nothing in storage
     return {
-      id: Date.now(),
+      id: queryId || Date.now(),
+      userEmail: userEmail ? userEmail.trim().toLowerCase() : undefined,
       title: "Galeri Kenangan Saya",
       category: "Pernikahan",
       date: new Date().toLocaleDateString("id-ID", {
@@ -81,8 +85,6 @@ function GalleryDetail() {
     };
   });
 
-  const [user, setUser] = useState<UserProfile | null>(() => getUser());
-
   const [activeTab, setActiveTab] = useState<"Foto" | "Pesan Kenangan" | "Pengaturan">(() => {
     const tabParam = params.get("tab");
     if (tabParam === "Pengaturan" || tabParam === "settings") return "Pengaturan";
@@ -93,11 +95,34 @@ function GalleryDetail() {
   const [photos, setPhotos] = useState<GalleryPhoto[]>(() => gallery.photosList || []);
   const [messages, setMessages] = useState<GalleryMessage[]>(() => gallery.messagesList || []);
 
-  // Ambil data terbaru dari Supabase/Backend jika tersedia
+  // Ambil data terbaru dari Supabase/Backend jika tersedia dan proteksi akses pemilik
   useEffect(() => {
+    // 1. Cek autentikasi user
+    if (!user || !user.email) {
+      // Jika membuka dengan queryId (kemungkinan tamu yang membuka link detail alih-alih link tamu)
+      if (queryId) {
+        window.location.assign(`/galeri?id=${queryId}`);
+      } else {
+        window.location.assign(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+      }
+      return;
+    }
+
+    // 2. Ambil data terbaru dari Supabase jika ada queryId
     if (queryId) {
       fetchGalleryFromSupabase(queryId).then((remote) => {
         if (remote) {
+          // Proteksi akses: jika album ini milik orang lain (userEmail berbeda),
+          // alihkan user ke tampilan album tamu (/galeri?id=...) agar tidak bisa mengelola album orang lain
+          if (
+            remote.userEmail &&
+            user.email &&
+            remote.userEmail.trim().toLowerCase() !== user.email.trim().toLowerCase()
+          ) {
+            window.location.assign(`/galeri?id=${queryId}`);
+            return;
+          }
+
           setGallery(remote);
           setPhotos(remote.photosList || []);
           setMessages(remote.messagesList || []);
@@ -106,7 +131,7 @@ function GalleryDetail() {
         }
       });
     }
-  }, [queryId]);
+  }, [queryId, user?.email]);
 
   const [packageType, setPackageType] = useState<"basic" | "premium">("basic");
   const [copied, setCopied] = useState(false);
@@ -135,14 +160,16 @@ function GalleryDetail() {
 
   const handleGuestUploadsChange = (enabled: boolean) => {
     setAllowGuestUploads(enabled);
+    const userEmail = user?.email ? user.email.trim().toLowerCase() : gallery.userEmail;
     const updated: Gallery = {
       ...gallery,
+      userEmail,
       allowGuestUploads: enabled,
     };
     setGallery(updated);
     updateGallery(updated);
-    if (isSupabaseConfigured) {
-      saveGalleryToSupabase(updated);
+    if (isSupabaseConfigured && userEmail) {
+      saveGalleryToSupabase(updated, userEmail);
     }
     setNotice(
       enabled
@@ -153,14 +180,16 @@ function GalleryDetail() {
 
   const handleGuestMessagesChange = (enabled: boolean) => {
     setAllowGuestMessages(enabled);
+    const userEmail = user?.email ? user.email.trim().toLowerCase() : gallery.userEmail;
     const updated: Gallery = {
       ...gallery,
+      userEmail,
       allowGuestMessages: enabled,
     };
     setGallery(updated);
     updateGallery(updated);
-    if (isSupabaseConfigured) {
-      saveGalleryToSupabase(updated);
+    if (isSupabaseConfigured && userEmail) {
+      saveGalleryToSupabase(updated, userEmail);
     }
     setNotice(
       enabled
@@ -181,14 +210,16 @@ function GalleryDetail() {
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === "string") {
+        const userEmail = user?.email ? user.email.trim().toLowerCase() : gallery.userEmail;
         const updated: Gallery = {
           ...gallery,
+          userEmail,
           image: reader.result,
         };
         setGallery(updated);
         updateGallery(updated);
-        if (isSupabaseConfigured) {
-          saveGalleryToSupabase(updated);
+        if (isSupabaseConfigured && userEmail) {
+          saveGalleryToSupabase(updated, userEmail);
         }
         setNotice("Foto sampul album berhasil diperbarui!");
       }

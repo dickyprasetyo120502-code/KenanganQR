@@ -1,5 +1,5 @@
 
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useState, useEffect, type ChangeEvent, type FormEvent } from "react";
 import {
   Camera,
   CalendarDays,
@@ -12,24 +12,18 @@ import {
 
 import logoImage from "../assets/logo.jpg";
 import { saveGalleryToSupabase, isSupabaseConfigured } from "../lib/supabase";
+import { getUser, getGalleries, saveGalleries, type Gallery } from "../utils/storage";
 import "../styles/CreateGallery.css";
 
-type Gallery = {
-  id: number;
-  title: string;
- category: string;
-  date: string;
-  photos: number;
-  messages: number;
-  guests: number;
-  image: string;
-  description: string;
-  allowGuestUploads: boolean;
-  allowGuestMessages: boolean;
-  isNew: boolean;
-};
-
 function CreateGallery() {
+  const [user, setUser] = useState(() => getUser());
+
+  useEffect(() => {
+    if (!user || !user.email) {
+      window.location.href = "/login?redirect=/dashboard/create";
+    }
+  }, [user]);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] =
@@ -89,23 +83,25 @@ function CreateGallery() {
       return;
     }
 
+    if (!user || !user.email) {
+      setMessage("Silakan masuk terlebih dahulu untuk membuat galeri.");
+      window.location.href = "/login?redirect=/dashboard/create";
+      return;
+    }
+
     setSaving(true);
 
     try {
-      const saved = localStorage.getItem("kenanganqr-galleries");
-      const galleries: Gallery[] = saved ? JSON.parse(saved) : [];
-
-      if (!Array.isArray(galleries)) {
-        throw new Error("Data galeri tidak valid.");
-      }
-
       const chosenCategory =
         category === "Lainnya" && customCategory.trim()
           ? customCategory.trim()
           : category || "Acara Spesial";
 
+      const userEmail = user.email.trim().toLowerCase();
+
       const newGallery: Gallery = {
         id: Date.now(),
+        userEmail,
         title: title.trim(),
         category: chosenCategory,
         date: new Date(`${date}T12:00:00`).toLocaleDateString("id-ID", {
@@ -125,15 +121,14 @@ function CreateGallery() {
         isNew: true,
       };
 
-      // Simpan ke Supabase jika sudah terhubung
+      // Simpan ke Supabase jika sudah terhubung dengan menyertakan userEmail
       if (isSupabaseConfigured) {
-        await saveGalleryToSupabase(newGallery);
+        await saveGalleryToSupabase(newGallery, userEmail);
       }
 
-      localStorage.setItem(
-        "kenanganqr-galleries",
-        JSON.stringify([newGallery, ...galleries])
-      );
+      // Simpan ke localStorage khusus akun user ini
+      const existing = getGalleries(userEmail);
+      saveGalleries([newGallery, ...existing], userEmail);
 
       window.location.href = "/dashboard";
     } catch {

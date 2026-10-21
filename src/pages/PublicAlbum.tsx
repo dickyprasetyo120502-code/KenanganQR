@@ -37,8 +37,6 @@ function PublicAlbum() {
       const found = getGalleryById(queryId);
       if (found) return found;
     }
-    const all = getGalleries();
-    if (all.length > 0) return all[0];
     return null;
   });
 
@@ -186,10 +184,10 @@ function PublicAlbum() {
           <div className="pa-empty-box" style={{ marginTop: "60px", padding: "40px 20px" }}>
             <ImageIcon size={40} color="#9d804b" style={{ margin: "0 auto 12px" }} />
             <h2 style={{ fontFamily: "Playfair Display, serif", margin: "0 0 8px", color: "#32291e" }}>
-              Galeri Belum Dibuat
+              Galeri Tidak Ditemukan
             </h2>
             <p style={{ maxWidth: "360px", margin: "0 auto" }}>
-              Belum ada galeri album yang terhubung. Pemilik acara dapat membuat album baru melalui dashboard.
+              Silakan periksa kembali tautan yang Anda buka atau pindai QR Code resmi dari pemilik acara untuk melihat galeri foto ini.
             </p>
           </div>
 

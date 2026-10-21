@@ -30,10 +30,16 @@ import {
 // SUPABASE & EXPRESS BACKEND OPERATIONS
 // ==========================================
 
-export async function fetchAllGalleriesFromSupabase(): Promise<Gallery[]> {
-  // 1. Coba ambil melalui Express Backend API terlebih dahulu
+export async function fetchAllGalleriesFromSupabase(
+  userEmail?: string
+): Promise<Gallery[]> {
+  // 1. Coba ambil melalui Express Backend API terlebih dahulu jika ada
   const apiData = await fetchGalleries();
   if (apiData !== null) {
+    if (userEmail) {
+      const lower = userEmail.trim().toLowerCase();
+      return apiData.filter((g) => g.userEmail && g.userEmail.toLowerCase() === lower);
+    }
     return apiData;
   }
 
@@ -41,15 +47,23 @@ export async function fetchAllGalleriesFromSupabase(): Promise<Gallery[]> {
   if (!supabase) return [];
 
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("galleries")
       .select("*, gallery_photos(*), gallery_messages(*)")
       .order("created_at", { ascending: false });
+
+    // HANYA AMBIL GALERI MILIK USER YANG SEDANG LOGIN
+    if (userEmail && userEmail.trim().length > 0) {
+      query = query.eq("user_email", userEmail.trim().toLowerCase());
+    }
+
+    const { data, error } = await query;
 
     if (error || !data) return [];
 
     return data.map((g) => ({
       id: Number(g.id),
+      userEmail: g.user_email || undefined,
       title: g.title,
       category: g.category,
       date: g.event_date,
@@ -122,6 +136,7 @@ export async function fetchGalleryFromSupabase(
 
     return {
       id: Number(gallery.id),
+      userEmail: gallery.user_email || undefined,
       title: gallery.title,
       category: gallery.category,
       date: gallery.event_date,
@@ -141,7 +156,10 @@ export async function fetchGalleryFromSupabase(
   }
 }
 
-export async function saveGalleryToSupabase(gallery: Gallery): Promise<boolean> {
+export async function saveGalleryToSupabase(
+  gallery: Gallery,
+  userEmail?: string
+): Promise<boolean> {
   // 1. Coba simpan melalui Express Backend API
   const apiSaved = await saveGallery(gallery);
   if (apiSaved) return true;
@@ -149,9 +167,12 @@ export async function saveGalleryToSupabase(gallery: Gallery): Promise<boolean> 
   // 2. Fallback langsung ke Supabase
   if (!supabase) return false;
 
+  const emailToSave = (userEmail || gallery.userEmail || "").trim().toLowerCase();
+
   try {
     const { error } = await supabase.from("galleries").upsert({
       id: gallery.id,
+      user_email: emailToSave || null,
       title: gallery.title,
       category: gallery.category,
       event_date: gallery.date,
@@ -168,6 +189,32 @@ export async function saveGalleryToSupabase(gallery: Gallery): Promise<boolean> 
     return true;
   } catch (err) {
     console.error("Gagal menyimpan galeri ke Supabase:", err);
+    return false;
+  }
+}
+
+export async function deleteGalleryFromSupabase(
+  galleryId: number,
+  userEmail?: string
+): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    let query = supabase.from("galleries").delete().eq("id", galleryId);
+
+    // Keamanan tambahan: pastikan hanya pemilik email yang bisa menghapus dari Supabase
+    if (userEmail && userEmail.trim().length > 0) {
+      query = query.eq("user_email", userEmail.trim().toLowerCase());
+    }
+
+    const { error } = await query;
+    if (error) {
+      console.error("Error deleting gallery from Supabase:", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("Gagal menghapus galeri dari Supabase:", err);
     return false;
   }
 }

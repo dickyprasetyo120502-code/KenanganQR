@@ -28,6 +28,7 @@ model Profile {
 model Gallery {
   id                 BigInt           @id
   userId             String?          @map("user_id") @db.Uuid
+  userEmail          String?          @map("user_email")
   title              String
   category           String           @default("Pernikahan")
   eventDate          String           @map("event_date")

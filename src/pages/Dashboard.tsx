@@ -37,25 +37,36 @@ import {
 
 import {
   fetchAllGalleriesFromSupabase,
+  saveGalleryToSupabase,
+  deleteGalleryFromSupabase,
   isSupabaseConfigured,
 } from "../lib/supabase";
 
 import "../styles/dashboard.css";
 
 function Dashboard() {
-  const [galleries, setGalleries] = useState<Gallery[]>(() => getGalleries());
   const [user, setUser] = useState<UserProfile | null>(() => getUser());
+  const [galleries, setGalleries] = useState<Gallery[]>(() =>
+    getGalleries(user?.email)
+  );
 
   useEffect(() => {
+    // Jika belum login, arahkan ke halaman login
+    if (!user || !user.email) {
+      window.location.assign("/login");
+      return;
+    }
+
+    // Ambil HANYA galeri milik user yang sedang login
     if (isSupabaseConfigured) {
-      fetchAllGalleriesFromSupabase().then((remote) => {
-        if (remote && remote.length > 0) {
+      fetchAllGalleriesFromSupabase(user.email).then((remote) => {
+        if (remote) {
           setGalleries(remote);
-          saveGalleries(remote);
+          saveGalleries(remote, user.email);
         }
       });
     }
-  }, []);
+  }, [user?.email]);
 
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -92,10 +103,10 @@ function Dashboard() {
 
   function handleSaveGalleries(nextGalleries: Gallery[]) {
     setGalleries(nextGalleries);
-    saveGalleries(nextGalleries);
+    saveGalleries(nextGalleries, user?.email);
   }
 
-  function createGallery(event: React.FormEvent<HTMLFormElement>) {
+  async function createGallery(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const title = newTitle.trim();
@@ -107,6 +118,7 @@ function Dashboard() {
 
     const gallery: Gallery = {
       id: Date.now(),
+      userEmail: user?.email ? user.email.trim().toLowerCase() : undefined,
       title,
       category: newCategory,
       date: new Date().toLocaleDateString("id-ID", {
@@ -125,18 +137,29 @@ function Dashboard() {
     };
 
     handleSaveGalleries([gallery, ...galleries]);
+
+    if (isSupabaseConfigured && user?.email) {
+      await saveGalleryToSupabase(gallery, user.email);
+    }
+
     setNewTitle("");
     setNewCategory("Pernikahan");
     setShowCreate(false);
     setNotice("Galeri berhasil dibuat!");
   }
 
-  function deleteGallery(id: number) {
+  async function deleteGallery(id: number) {
     const confirmed = window.confirm("Yakin ingin menghapus galeri ini?");
     if (!confirmed) return;
 
     handleSaveGalleries(galleries.filter((gallery) => gallery.id !== id));
     setActiveMenu(null);
+
+    // Hapus dari Supabase agar permanen
+    if (isSupabaseConfigured && user?.email) {
+      await deleteGalleryFromSupabase(id, user.email);
+    }
+
     setNotice("Galeri berhasil dihapus.");
   }
 

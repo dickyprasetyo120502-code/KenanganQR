@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE TABLE IF NOT EXISTS public.galleries (
     id BIGINT PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    user_email TEXT,
     title TEXT NOT NULL,
     category TEXT DEFAULT 'Pernikahan' NOT NULL,
     event_date TEXT NOT NULL,
