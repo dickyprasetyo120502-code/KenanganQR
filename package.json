@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -n \"VITE,EXPRESS\" -c \"cyan,green\" \"vite\" \"node server/index.js\"",
+    "dev:vite": "vite",
     "server": "node server/index.js",
     "dev:server": "node --watch server/index.js",
-    "dev:all": "concurrently -n \"VITE,EXPRESS\" -c \"cyan,green\" \"npm run dev\" \"npm run server\"",
+    "dev:all": "concurrently -n \"VITE,EXPRESS\" -c \"cyan,green\" \"vite\" \"node server/index.js\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^24.19.2",

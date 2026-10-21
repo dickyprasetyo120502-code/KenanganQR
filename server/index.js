@@ -294,7 +294,7 @@ app.post("/api/auth/login", async (req, res) => {
 
 // POST /api/auth/google - Login atau Daftar via Google OAuth
 app.post("/api/auth/google", async (req, res) => {
-  const { email, name, avatar } = req.body;
+  const { email, name, avatar, mode = "login" } = req.body;
 
   if (!email || !email.trim()) {
     return res.status(400).json({ error: "Email akun Google diperlukan." });
@@ -328,6 +328,15 @@ app.post("/api/auth/google", async (req, res) => {
           });
         }
 
+        // Jika mode login dan akun belum pernah didaftarkan
+        if (mode === "login") {
+          return res.status(404).json({
+            error: "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!",
+            notRegistered: true,
+          });
+        }
+
+        // Mode pendaftaran (register): Buat akun baru
         const newUser = await prisma.user.create({
           data: {
             fullName: displayName,
@@ -363,6 +372,15 @@ app.post("/api/auth/google", async (req, res) => {
       });
     }
 
+    // Jika mode login dan akun belum pernah didaftarkan
+    if (mode === "login") {
+      return res.status(404).json({
+        error: "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!",
+        notRegistered: true,
+      });
+    }
+
+    // Mode pendaftaran (register): Buat akun baru di Supabase
     const { data: created, error } = await supabase
       .from("users")
       .insert({
@@ -471,36 +489,59 @@ app.post("/api/auth/reset-password", async (req, res) => {
     let user = null;
 
     if (prisma) {
-      user = await prisma.user.findFirst({
-        where: { email: { equals: cleanEmail, mode: "insensitive" } },
-      });
-    } else if (supabase) {
-      const { data } = await supabase
+      try {
+        user = await prisma.user.findFirst({
+          where: { email: { equals: cleanEmail, mode: "insensitive" } },
+        });
+      } catch (prismaErr) {
+        console.warn("Prisma error on /api/auth/reset-password, falling back to Supabase:", prismaErr.message);
+      }
+    }
+
+    if (!user && supabase) {
+      const { data, error: sbErr } = await supabase
         .from("users")
         .select("*")
         .ilike("email", cleanEmail)
         .maybeSingle();
-      user = data;
+      if (!sbErr && data) {
+        user = data;
+      }
     }
 
     if (!user) {
       return res.status(404).json({
         error: "Email tidak terdaftar dalam sistem. Silakan periksa kembali atau buat akun baru.",
+        notRegistered: true,
       });
     }
 
     const newHash = bcrypt.hashSync(newPassword, 10);
+    let updated = false;
 
     if (prisma) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { passwordHash: newHash },
-      });
-    } else if (supabase) {
-      await supabase
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash: newHash },
+        });
+        updated = true;
+      } catch (prismaErr) {
+        console.warn("Prisma update error on reset-password, falling back to Supabase:", prismaErr.message);
+      }
+    }
+
+    if (!updated && supabase) {
+      const { error: sbUpdateErr } = await supabase
         .from("users")
         .update({ password_hash: newHash, updated_at: new Date().toISOString() })
         .eq("id", user.id);
+
+      if (sbUpdateErr) {
+        console.error("Supabase user update error on reset-password:", sbUpdateErr);
+        return res.status(500).json({ error: sbUpdateErr.message });
+      }
+      updated = true;
     }
 
     return res.json({

@@ -99,7 +99,8 @@ function Register() {
           const authRes = await loginWithGoogleOAuth(
             data.email,
             data.name.trim(),
-            data.picture
+            data.picture,
+            "register"
           );
 
           if (authRes.success) {
@@ -130,7 +131,8 @@ function Register() {
     const authRes = await loginWithGoogleOAuth(
       pendingGoogleUser.email,
       googleName.trim(),
-      pendingGoogleUser.avatar
+      pendingGoogleUser.avatar,
+      "register"
     );
     setLoading(false);
 

@@ -8,8 +8,12 @@ import { loginUser, loginWithGoogleOAuth } from "../lib/auth";
 import "../styles/auth.css";
 
 function Login() {
+  const params = new URLSearchParams(window.location.search);
+  const redirectUrl = params.get("redirect") || "/dashboard";
+  const initialEmail = params.get("email") || "";
+
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [isNotRegistered, setIsNotRegistered] = useState(false);
@@ -19,9 +23,6 @@ function Login() {
   const [showNameModal, setShowNameModal] = useState(false);
   const [pendingUser, setPendingUser] = useState<{ email: string; avatar?: string } | null>(null);
   const [fullName, setFullName] = useState("");
-
-  const params = new URLSearchParams(window.location.search);
-  const redirectUrl = params.get("redirect") || "/dashboard";
 
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
@@ -49,13 +50,21 @@ function Login() {
           const authRes = await loginWithGoogleOAuth(
             data.email,
             data.name.trim(),
-            data.picture
+            data.picture,
+            "login"
           );
 
           if (authRes.success) {
             window.location.href = redirectUrl;
           } else {
-            setMessage(authRes.error || "Gagal masuk menggunakan Google.");
+            if (authRes.notRegistered) {
+              setEmail(data.email);
+              setIsNotRegistered(true);
+              setMessage(authRes.error || "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!");
+            } else {
+              setIsNotRegistered(false);
+              setMessage(authRes.error || "Gagal masuk menggunakan Google.");
+            }
           }
         } else {
           setPendingUser({ email: data.email, avatar: data.picture });
@@ -80,14 +89,22 @@ function Login() {
     const authRes = await loginWithGoogleOAuth(
       pendingUser.email,
       fullName.trim(),
-      pendingUser.avatar
+      pendingUser.avatar,
+      "login"
     );
     setLoading(false);
 
     if (authRes.success) {
       window.location.href = redirectUrl;
     } else {
-      setMessage(authRes.error || "Gagal menyimpan akun.");
+      if (authRes.notRegistered) {
+        setEmail(pendingUser.email);
+        setIsNotRegistered(true);
+        setShowNameModal(false);
+        setMessage(authRes.error || "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!");
+      } else {
+        setMessage(authRes.error || "Gagal menyimpan akun.");
+      }
     }
   }
 
@@ -215,8 +232,11 @@ function Login() {
                     <Eye size={19} />
                   )}
                 </button>
-            <a href="/forgot-password" className="forgot-password-link">
-            Lupa Kata Sandi?
+            <a
+              href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+              className="forgot-password-link"
+            >
+              Lupa Kata Sandi?
             </a>
                             
               </div>

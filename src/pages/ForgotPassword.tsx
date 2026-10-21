@@ -4,7 +4,10 @@ import { resetUserPassword } from "../lib/auth";
 import "../styles/auth.css";
 
 function ForgotPassword() {
-  const [email, setEmail] = useState("");
+  const params = new URLSearchParams(window.location.search);
+  const initialEmail = params.get("email") || "";
+
+  const [email, setEmail] = useState(initialEmail);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -81,7 +84,7 @@ function ForgotPassword() {
               Sekarang Anda dapat masuk menggunakan kata sandi baru ini.
             </p>
 
-            <a href="/login" className="forgot-submit" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+            <a href={`/login?email=${encodeURIComponent(email)}`} className="forgot-submit" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
               <span>Masuk ke Akun Anda</span>
               <ArrowRight size={16} />
             </a>
