@@ -1,0 +1,78 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "auth"]
+}
+
+model Profile {
+  id         String    @id @db.Uuid
+  email      String?
+  fullName   String    @map("full_name")
+  avatarUrl  String?   @map("avatar_url")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  galleries  Gallery[]
+
+  @@map("profiles")
+  @@schema("public")
+}
+
+model Gallery {
+  id                 BigInt           @id
+  userId             String?          @map("user_id") @db.Uuid
+  title              String
+  category           String           @default("Pernikahan")
+  eventDate          String           @map("event_date")
+  coverImage         String?          @map("cover_image")
+  description        String?
+  allowGuestUploads  Boolean          @default(true) @map("allow_guest_uploads")
+  allowGuestMessages Boolean          @default(true) @map("allow_guest_messages")
+  isActive           Boolean          @default(true) @map("is_active")
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user               Profile?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  photos             GalleryPhoto[]
+  messages           GalleryMessage[]
+
+  @@map("galleries")
+  @@schema("public")
+}
+
+model GalleryPhoto {
+  id           BigInt   @id
+  galleryId    BigInt   @map("gallery_id")
+  name         String?  @default("Foto Kenangan")
+  photoUrl     String   @map("photo_url")
+  uploaderName String   @default("Tamu") @map("uploader_name")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+
+  @@index([galleryId], map: "idx_photos_gallery_id")
+  @@map("gallery_photos")
+  @@schema("public")
+}
+
+model GalleryMessage {
+  id          BigInt   @id
+  galleryId   BigInt   @map("gallery_id")
+  senderName  String   @map("sender_name")
+  message     String
+  timeDisplay String?  @default("Baru saja") @map("time_display")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  gallery     Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+
+  @@index([galleryId], map: "idx_messages_gallery_id")
+  @@map("gallery_messages")
+  @@schema("public")
+}

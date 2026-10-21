@@ -1,0 +1,916 @@
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap");
+
+:root {
+  font-family: "DM Sans", sans-serif;
+  color: #342b22;
+  background: #faf7f0;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 90px;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+}
+
+.home-page {
+  overflow: hidden;
+  background: #faf7f0;
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 76px;
+  padding: 0 7%;
+  background: rgba(250, 247, 240, 0.96);
+  border-bottom: 1px solid #eae2d5;
+  backdrop-filter: blur(12px);
+}
+
+/* Logo dan tulisan KenanganQR */
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: "Playfair Display", serif;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -1.2px;
+}
+
+.brand-logo {
+  display: block;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.brand-name {
+  color: #342b22;
+}
+
+.brand-name span {
+  color: #b28a43;
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  font-size: 13px;
+}
+
+.site-nav > a:not(.nav-register):hover {
+  color: #a37a36;
+}
+
+.nav-login {
+  margin-left: 8px;
+}
+
+.nav-register {
+  padding: 12px 19px;
+  border: 1px solid #c8a66b;
+  border-radius: 30px;
+  background: #f2e5cc;
+}
+
+.menu-toggle {
+  display: none;
+  padding: 7px;
+  border: 0;
+  background: transparent;
+  color: #342b22;
+  font-size: 25px;
+  cursor: pointer;
+}
+
+/* Gambar utama */
+
+.hero-section {
+  padding: 24px 7% 0;
+}
+
+.hero-image {
+  position: relative;
+  min-height: 600px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #74614c;
+  color: white;
+}
+
+.hero-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+}
+
+.hero-image-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(27, 24, 19, 0.76) 0%,
+      rgba(35, 29, 23, 0.52) 38%,
+      rgba(35, 29, 23, 0.04) 78%
+    ),
+    linear-gradient(
+      0deg,
+      rgba(28, 23, 17, 0.2),
+      transparent 45%
+    );
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  width: min(500px, 52%);
+  padding: 86px 0 120px 8%;
+}
+
+.eyebrow {
+  margin: 0 0 13px;
+  color: #9b7940;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2.6px;
+}
+
+.hero-eyebrow {
+  color: #f2dfb9;
+  line-height: 1.9;
+}
+
+.hero-content h1 {
+  margin: 20px 0 18px;
+  font-family: "Playfair Display", serif;
+  font-size: clamp(44px, 5.4vw, 76px);
+  font-weight: 400;
+  line-height: 0.99;
+  letter-spacing: -1.8px;
+  color: #ffffff;
+}
+.hero-description {
+  max-width: 365px;
+  margin-bottom: 27px;
+  color: #f4eee4;
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+.gold-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: 48px;
+  padding: 0 23px;
+  border: 1px solid #e6c58c;
+  border-radius: 30px;
+  background: #e9d1a5;
+  color: #382b1d;
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.gold-button:hover {
+  transform: translateY(-2px);
+  background: #f4dfb8;
+}
+
+.gold-button span {
+  font-size: 18px;
+}
+
+/* Kartu QR pada gambar */
+
+.qr-card {
+  position: absolute;
+  z-index: 3;
+  right: 7%;
+  bottom: 38px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 330px;
+  padding: 17px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 5px;
+  background: rgba(250, 247, 239, 0.96);
+  color: #3d3224;
+  box-shadow: 0 10px 35px rgba(31, 24, 17, 0.18);
+}
+
+.qr-pattern {
+  position: relative;
+  flex-shrink: 0;
+  width: 85px;
+  height: 85px;
+  overflow: hidden;
+  border: 5px solid white;
+  background-color: #fff;
+  background-image: repeating-conic-gradient(
+    #29251f 0% 25%,
+    #fff 0% 50%
+  );
+  background-size: 10px 10px;
+}
+
+.qr-corner {
+  position: absolute;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  border: 5px solid #29251f;
+  background: white;
+}
+
+.qr-corner::after {
+  position: absolute;
+  inset: 4px;
+  background: #29251f;
+  content: "";
+}
+
+.corner-one {
+  top: 0;
+  left: 0;
+}
+
+.corner-two {
+  top: 0;
+  right: 0;
+}
+
+.corner-three {
+  bottom: 0;
+  left: 0;
+}
+
+.qr-dots {
+  position: absolute;
+  right: 5px;
+  bottom: 7px;
+  width: 18px;
+  height: 18px;
+  background: #29251f;
+}
+
+.qr-card-copy strong {
+  font-family: "Playfair Display", serif;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.qr-card-copy p {
+  margin: 6px 0 12px;
+  color: #716655;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.qr-card-copy > span {
+  color: #9a7944;
+  font-size: 8px;
+  letter-spacing: 1.2px;
+}
+
+.hero-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0 24px;
+  color: #867967;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+}
+
+/* Tiga keunggulan */
+
+.benefits-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  padding: 30px 10%;
+  border-top: 1px solid #e8e0d4;
+  border-bottom: 1px solid #e8e0d4;
+  background: #f6f0e5;
+}
+
+.benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.benefit-icon {
+  display: grid;
+  flex-shrink: 0;
+  width: 43px;
+  height: 43px;
+  place-items: center;
+  border: 1px solid #e7d9bd;
+  border-radius: 50%;
+  background: #f0e4cd;
+  color: #9c7940;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.benefit-item strong {
+  display: block;
+  font-family: "Playfair Display", serif;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.benefit-item p {
+  margin: 5px 0 0;
+  color: #837968;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* Cara kerja */
+
+.section-shell {
+  padding: 90px 9%;
+}
+
+.section-heading {
+  max-width: 550px;
+  margin: 0 auto 42px;
+  text-align: center;
+}
+
+.section-heading h2,
+.closing-section h2 {
+  margin: 0 0 13px;
+  font-family: "Playfair Display", serif;
+  font-size: clamp(32px, 4vw, 46px);
+  font-weight: 400;
+  letter-spacing: -0.8px;
+}
+
+.section-heading > p:last-child {
+  margin: 0;
+  color: #817565;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+
+.step-card {
+  padding: 25px 18px;
+  text-align: center;
+}
+
+.step-icon-wrap {
+  position: relative;
+  display: grid;
+  width: 78px;
+  height: 78px;
+  margin: 0 auto 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: #f0e4cd;
+}
+
+.step-number {
+  position: absolute;
+  top: -4px;
+  left: -1px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: #b39254;
+  color: white;
+  font-size: 10px;
+}
+
+.step-icon {
+  color: #92723b;
+  font-size: 31px;
+}
+
+.step-card h3 {
+  margin: 0 0 9px;
+  font-family: "Playfair Display", serif;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.step-card p {
+  max-width: 230px;
+  margin: 0 auto;
+  color: #817565;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+/* Paket harga */
+
+.pricing-section {
+  border-top: 1px solid #e8e0d4;
+  background: #f5efe3;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 20px;
+  max-width: 1020px;
+  margin: 0 auto;
+}
+
+.price-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 23px 23px;
+  border: 1px solid #e6ddcf;
+  border-radius: 6px;
+  background: #fcfaf5;
+}
+
+.price-card h3 {
+  margin: 0 0 7px;
+  font-family: "Playfair Display", serif;
+  font-size: 23px;
+  font-weight: 500;
+}
+
+.plan-description {
+  min-height: 36px;
+  margin: 0 0 22px;
+  color: #857968;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.plan-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  padding-bottom: 21px;
+  border-bottom: 1px solid #ece4d8;
+}
+
+.plan-price strong {
+  font-family: "Playfair Display", serif;
+  font-size: 25px;
+  font-weight: 600;
+}
+
+.plan-price > span {
+  color: #8a7d6c;
+  font-size: 11px;
+}
+
+.price-card ul {
+  display: grid;
+  gap: 13px;
+  margin: 23px 0 28px;
+  padding: 0;
+  list-style: none;
+}
+
+.price-card li {
+  display: flex;
+  gap: 9px;
+  color: #645b4d;
+  font-size: 11px;
+}
+
+.price-card li span {
+  color: #9a7a40;
+  font-weight: 700;
+}
+
+.plan-button {
+  display: block;
+  margin-top: auto;
+  padding: 12px 10px;
+  border: 1px solid #d9c9ac;
+  border-radius: 25px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
+
+.plan-button:hover {
+  background: #f0e4d0;
+}
+
+.plan-featured {
+  border-color: #b9975a;
+  background: #e9d5ae;
+  box-shadow: 0 10px 30px rgba(107, 79, 36, 0.1);
+}
+
+.popular-label {
+  position: absolute;
+  top: -12px;
+  right: 13px;
+  padding: 6px 10px;
+  border-radius: 3px;
+  background: #ad8a4a;
+  color: white;
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+.plan-button-gold {
+  border-color: #9b7739;
+  background: #a88649;
+  color: white;
+}
+
+.plan-button-gold:hover {
+  background: #94733b;
+}
+
+.pricing-note {
+  margin: 38px 0 0;
+  color: #8b795d;
+  font-family: "Playfair Display", serif;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* Bagian penutup dan footer */
+
+.closing-section {
+  padding: 85px 20px;
+  text-align: center;
+}
+
+.closing-section h2 {
+  margin-bottom: 12px;
+}
+
+.closing-section > p:not(.eyebrow) {
+  margin: 0 auto 25px;
+  color: #817565;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 26px 7%;
+  border-top: 1px solid #e8e0d4;
+}
+
+.site-footer .brand {
+  font-size: 21px;
+}
+
+.site-footer .brand-logo {
+  width: 30px;
+  height: 30px;
+}
+
+.site-footer p,
+.site-footer > span {
+  color: #857968;
+  font-size: 10px;
+}
+
+/* Tablet dan layar besar */
+
+@media (min-width: 1500px) {
+  .hero-section,
+  .site-header,
+  .benefits-strip,
+  .section-shell,
+  .site-footer {
+    padding-right: max(7%, calc((100% - 1280px) / 2));
+    padding-left: max(7%, calc((100% - 1280px) / 2));
+  }
+
+  .hero-image {
+    min-height: 690px;
+  }
+}
+
+@media (max-width: 900px) {
+  .site-header {
+    padding: 0 5%;
+  }
+
+  .site-nav {
+    gap: 18px;
+  }
+
+  .hero-section {
+    padding: 18px 4% 0;
+  }
+
+  .hero-image {
+    min-height: 560px;
+  }
+
+  .hero-content {
+    width: 58%;
+    padding-left: 6%;
+  }
+
+  .qr-card {
+    right: 4%;
+    width: 295px;
+  }
+
+  .benefits-strip {
+    padding-right: 5%;
+    padding-left: 5%;
+    gap: 16px;
+  }
+
+  .section-shell {
+    padding: 72px 5%;
+  }
+
+  .pricing-grid {
+    gap: 12px;
+  }
+
+  .price-card {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+}
+
+/* Tampilan HP */
+
+@media (max-width: 640px) {
+  .site-header {
+    min-height: 62px;
+    padding: 0 20px;
+  }
+
+  .brand {
+    gap: 7px;
+    font-size: 23px;
+  }
+
+  .brand-logo {
+    width: 31px;
+    height: 31px;
+  }
+
+  .menu-toggle {
+    display: block;
+  }
+
+  .site-nav {
+    position: absolute;
+    top: 61px;
+    right: 0;
+    left: 0;
+    display: none;
+    align-items: stretch;
+    gap: 0;
+    padding: 12px 20px 20px;
+    border-bottom: 1px solid #e8e0d4;
+    background: #faf7f0;
+  }
+
+  .site-nav.nav-open {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .site-nav > a {
+    padding: 14px 6px;
+  }
+
+  .site-nav .nav-login {
+    margin-left: 0;
+  }
+
+  .site-nav .nav-register {
+    margin-top: 8px;
+    padding: 13px 16px;
+    text-align: center;
+  }
+
+  .hero-section {
+    padding: 12px 12px 0;
+  }
+
+  .hero-image {
+    min-height: 660px;
+    border-radius: 4px;
+  }
+
+  .hero-photo {
+    object-position: 56% center;
+  }
+
+  .hero-image-overlay {
+    background:
+      linear-gradient(
+        90deg,
+        rgba(24, 22, 18, 0.67),
+        rgba(24, 22, 18, 0.1)
+      ),
+      linear-gradient(
+        0deg,
+        rgba(24, 22, 18, 0.83) 0%,
+        rgba(24, 22, 18, 0.15) 66%
+      );
+  }
+
+  .hero-content {
+    width: 100%;
+    padding: 56px 23px 250px;
+  }
+
+  .hero-eyebrow {
+    font-size: 9px;
+    letter-spacing: 2px;
+  }
+
+  .hero-content h1 {
+    margin-top: 17px;
+    font-size: clamp(43px, 12vw, 60px);
+  }
+
+  .hero-description {
+    max-width: 300px;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  .gold-button {
+    min-height: 45px;
+    padding: 0 18px;
+    font-size: 12px;
+  }
+
+  .qr-card {
+    right: 16px;
+    bottom: 18px;
+    left: 16px;
+    width: auto;
+    gap: 13px;
+    padding: 12px;
+  }
+
+  .qr-pattern {
+    width: 76px;
+    height: 76px;
+    background-size: 9px 9px;
+  }
+
+  .qr-card-copy strong {
+    font-size: 15px;
+  }
+
+  .hero-caption {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+    padding: 14px 2px 19px;
+    font-size: 8px;
+  }
+
+  .benefits-strip {
+    grid-template-columns: 1fr;
+    gap: 19px;
+    padding: 25px 23px;
+  }
+
+  .benefit-item {
+    gap: 13px;
+  }
+
+  .benefit-item strong {
+    font-size: 14px;
+  }
+
+  .section-shell {
+    padding: 64px 20px;
+  }
+
+  .section-heading {
+    margin-bottom: 25px;
+  }
+
+  .section-heading h2,
+  .closing-section h2 {
+    font-size: 34px;
+  }
+
+  .section-heading > p:last-child {
+    font-size: 12px;
+  }
+
+  .steps-grid {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .step-card {
+    padding: 17px 12px;
+  }
+
+  .step-icon-wrap {
+    width: 70px;
+    height: 70px;
+    margin-bottom: 15px;
+  }
+
+  .step-card h3 {
+    font-size: 19px;
+  }
+
+  .pricing-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 0 5px;
+  }
+
+  .price-card {
+    padding: 27px 22px 22px;
+  }
+
+  .plan-description {
+    min-height: auto;
+  }
+
+  .plan-price strong {
+    font-size: 27px;
+  }
+
+  .closing-section {
+    padding: 65px 22px;
+  }
+
+  .site-footer {
+    flex-direction: column;
+    gap: 8px;
+    padding: 28px 20px;
+    text-align: center;
+  }
+
+  .site-footer p {
+    margin: 0;
+  }
+}
+.step-icon {
+  width: 32px;
+  height: 32px;
+  color: #92723b;
+  stroke-width: 1.8;
+}
