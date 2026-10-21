@@ -1,28 +1,30 @@
 import { useGoogleLogin } from "@react-oauth/google";
 import { useState } from "react";
-import { Eye, EyeOff, Images, Users, Infinity as InfinityIcon, User, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, Images, Users, Infinity as InfinityIcon, User, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 
 import heroImage from "../assets/register.jpg";
 import logoImage from "../assets/logo.jpg";
-import { saveUser } from "../utils/storage";
+import { registerUser, loginWithGoogleOAuth } from "../lib/auth";
 import "../styles/auth.css";
 
 function Register() {
+  const params = new URLSearchParams(window.location.search);
+  const redirectUrl = params.get("redirect") || "/dashboard";
+  const initialEmail = params.get("email") || "";
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const [showNameModal, setShowNameModal] = useState(false);
   const [pendingGoogleUser, setPendingGoogleUser] = useState<{ email: string; avatar?: string } | null>(null);
   const [googleName, setGoogleName] = useState("");
-
-  const params = new URLSearchParams(window.location.search);
-  const redirectUrl = params.get("redirect") || "/dashboard";
 
   const strength =
     password.length === 0
@@ -35,7 +37,7 @@ function Register() {
           ? 4
           : 2;
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!name.trim()) {
@@ -58,10 +60,16 @@ function Register() {
       return;
     }
 
-    saveUser({
-      name: name.trim(),
-      email: email.trim(),
-    });
+    setLoading(true);
+    setMessage("");
+
+    const res = await registerUser(name.trim(), email.trim(), password);
+    setLoading(false);
+
+    if (!res.success) {
+      setMessage(res.error || "Pendaftaran akun gagal. Silakan coba lagi.");
+      return;
+    }
 
     window.location.href = redirectUrl;
   }
@@ -69,6 +77,9 @@ function Register() {
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
+        setLoading(true);
+        setMessage("");
+
         const response = await fetch(
           "https://www.googleapis.com/oauth2/v3/userinfo",
           {
@@ -85,18 +96,25 @@ function Register() {
         const data = await response.json();
 
         if (data.name && data.name.trim().length > 0) {
-          saveUser({
-            name: data.name.trim(),
-            email: data.email,
-            avatar: data.picture,
-          });
-          window.location.href = redirectUrl;
+          const authRes = await loginWithGoogleOAuth(
+            data.email,
+            data.name.trim(),
+            data.picture
+          );
+
+          if (authRes.success) {
+            window.location.href = redirectUrl;
+          } else {
+            setMessage(authRes.error || "Pendaftaran Google gagal.");
+          }
         } else {
           setPendingGoogleUser({ email: data.email, avatar: data.picture });
           setShowNameModal(true);
         }
       } catch {
         setMessage("Gagal mengambil data Google. Silakan coba lagi.");
+      } finally {
+        setLoading(false);
       }
     },
     onError: () => {
@@ -104,18 +122,25 @@ function Register() {
     },
   });
 
-  function handleSaveGoogleName(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSaveGoogleName(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!googleName.trim() || !pendingGoogleUser) return;
 
-    saveUser({
-      name: googleName.trim(),
-      email: pendingGoogleUser.email,
-      avatar: pendingGoogleUser.avatar,
-    });
+    setLoading(true);
+    const authRes = await loginWithGoogleOAuth(
+      pendingGoogleUser.email,
+      googleName.trim(),
+      pendingGoogleUser.avatar
+    );
+    setLoading(false);
 
-    window.location.href = redirectUrl;
+    if (authRes.success) {
+      window.location.href = redirectUrl;
+    } else {
+      setMessage(authRes.error || "Gagal menyimpan akun.");
+    }
   }
+
 
   return (
     <main className="auth-page">
@@ -301,13 +326,43 @@ function Register() {
             </label>
 
             {message && (
-              <p className="auth-message" role="status">
-                {message}
-              </p>
+              <div
+                className="auth-message"
+                role="status"
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "8px",
+                  padding: "12px",
+                  backgroundColor: "#fef2f2",
+                  color: "#991b1b",
+                  border: "1px solid #fecaca",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  marginBottom: "16px",
+                }}
+              >
+                <AlertCircle size={18} style={{ flexShrink: 0, marginTop: "2px" }} />
+                <span>{message}</span>
+              </div>
             )}
 
-            <button type="submit" className="auth-submit">
-              Daftar Gratis <span>→</span>
+            <button
+              type="submit"
+              className="auth-submit"
+              disabled={loading}
+              style={{
+                opacity: loading ? 0.75 : 1,
+                cursor: loading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+              }}
+            >
+              {loading && <Loader2 size={18} className="spin-animate" />}
+              <span>{loading ? "Mendaftarkan Akun..." : "Daftar Gratis"}</span>
+              {!loading && <span>→</span>}
             </button>
           </form>
 

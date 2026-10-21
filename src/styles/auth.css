@@ -821,13 +821,53 @@
 
 .login-message {
   margin: 0 0 15px;
-  padding: 12px;
+  padding: 12px 14px;
   color: #735c35;
   background: #f5eddf;
+  border: 1px solid #e7dcce;
   border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.5;
 }
+
+.login-message-alert {
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca !important;
+  color: #991b1b !important;
+}
+
+.login-register-alert-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #b49a6c;
+  color: #ffffff !important;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.login-register-alert-btn:hover {
+  background: #9d8355;
+  color: #ffffff !important;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin-animate {
+  animation: spin 1s linear infinite;
+}
+
 
 /* MOCKUP PONSEL */
 

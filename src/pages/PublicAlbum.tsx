@@ -11,12 +11,12 @@ import {
 import logoImage from "../assets/logo.jpg";
 import {
   getGalleryById,
-  getGalleries,
   updateGallery,
   type Gallery,
   type GalleryPhoto,
   type GalleryMessage,
 } from "../utils/storage";
+
 
 import {
   fetchGalleryFromSupabase,

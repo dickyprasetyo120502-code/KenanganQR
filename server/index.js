@@ -1,8 +1,10 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import bcrypt from "bcryptjs";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./prisma.js";
+
 
 // Muat environment variables dari .env
 dotenv.config();
@@ -92,6 +94,422 @@ app.get("/api/health", async (req, res) => {
     supabaseStatus,
     timestamp: new Date().toISOString(),
   });
+});
+
+// ==========================================
+// 1b. AUTHENTICATION & USER ENDPOINTS
+// ==========================================
+
+function formatUserResponse(user) {
+  return {
+    id: user.id,
+    name: user.fullName || user.full_name,
+    email: user.email,
+    avatar: user.avatarUrl || user.avatar_url || null,
+    createdAt: user.createdAt || user.created_at,
+  };
+}
+
+// POST /api/auth/register - Pendaftaran akun baru
+app.post("/api/auth/register", async (req, res) => {
+  const { name, email, password } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: "Nama lengkap wajib diisi." });
+  }
+
+  if (!email || !email.trim()) {
+    return res.status(400).json({ error: "Alamat email wajib diisi." });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(cleanEmail)) {
+    return res.status(400).json({ error: "Format email tidak valid." });
+  }
+
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: "Kata sandi minimal harus 8 karakter." });
+  }
+
+  try {
+    // 1. Cek apakah email sudah terdaftar via Prisma
+    if (prisma) {
+      try {
+        const existing = await prisma.user.findFirst({
+          where: {
+            email: {
+              equals: cleanEmail,
+              mode: "insensitive",
+            },
+          },
+        });
+
+        if (existing) {
+          return res.status(409).json({
+            error: "Email sudah terdaftar. Silakan langsung masuk ke akun Anda.",
+          });
+        }
+
+        const passwordHash = bcrypt.hashSync(password, 10);
+        const newUser = await prisma.user.create({
+          data: {
+            fullName: name.trim(),
+            email: cleanEmail,
+            passwordHash,
+          },
+        });
+
+        return res.status(201).json({
+          message: "Pendaftaran berhasil! Akun Anda telah dibuat.",
+          user: formatUserResponse(newUser),
+        });
+      } catch (prismaErr) {
+        console.warn("Prisma error on /api/auth/register, falling back to Supabase:", prismaErr.message);
+      }
+    }
+
+    // Fallback: Supabase Client SDK
+    if (!supabase) {
+      return res.status(503).json({ error: "Layanan database tidak tersedia." });
+    }
+
+    const { data: existingSupabase } = await supabase
+      .from("users")
+      .select("id, email")
+      .ilike("email", cleanEmail)
+      .maybeSingle();
+
+    if (existingSupabase) {
+      return res.status(409).json({
+        error: "Email sudah terdaftar. Silakan langsung masuk ke akun Anda.",
+      });
+    }
+
+    const passwordHash = bcrypt.hashSync(password, 10);
+    const { data: createdSupabase, error: insertErr } = await supabase
+      .from("users")
+      .insert({
+        full_name: name.trim(),
+        email: cleanEmail,
+        password_hash: passwordHash,
+      })
+      .select()
+      .single();
+
+    if (insertErr) {
+      console.error("Supabase user insert error:", insertErr);
+      return res.status(500).json({ error: insertErr.message });
+    }
+
+    res.status(201).json({
+      message: "Pendaftaran berhasil! Akun Anda telah dibuat.",
+      user: formatUserResponse(createdSupabase),
+    });
+  } catch (err) {
+    console.error("Server error on /api/auth/register:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/login - Masuk ke akun terdaftar (Wajib sudah punya akun)
+app.post("/api/auth/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !email.trim()) {
+    return res.status(400).json({ error: "Silakan masukkan alamat email Anda." });
+  }
+
+  if (!password) {
+    return res.status(400).json({ error: "Silakan masukkan kata sandi Anda." });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  try {
+    let user = null;
+
+    if (prisma) {
+      try {
+        user = await prisma.user.findFirst({
+          where: {
+            email: {
+              equals: cleanEmail,
+              mode: "insensitive",
+            },
+          },
+        });
+      } catch (prismaErr) {
+        console.warn("Prisma error on /api/auth/login, falling back to Supabase:", prismaErr.message);
+      }
+    }
+
+    if (!user && supabase) {
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .ilike("email", cleanEmail)
+        .maybeSingle();
+
+      if (!error && data) {
+        user = data;
+      }
+    }
+
+    // JIKA USER BELUM MEMILIKI AKUN DI DATABASE:
+    if (!user) {
+      return res.status(404).json({
+        error: "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!",
+        notRegistered: true,
+      });
+    }
+
+    const userHash = user.passwordHash || user.password_hash;
+
+    // JIKA USER DAFTAR LEWAT GOOGLE TANPA KATA SANDI
+    if (!userHash) {
+      return res.status(400).json({
+        error: "Akun ini didaftarkan via Google. Silakan masuk menggunakan tombol Masuk dengan Google.",
+      });
+    }
+
+    // CEK KECOCOKAN KATA SANDI MENGGUNAKAN BCRYPT
+    const isPasswordValid = bcrypt.compareSync(password, userHash);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        error: "Kata sandi yang Anda masukkan salah. Silakan periksa kembali.",
+      });
+    }
+
+    // LOGIN SUKSES
+    return res.json({
+      message: "Login berhasil! Selamat datang kembali.",
+      user: formatUserResponse(user),
+    });
+  } catch (err) {
+    console.error("Server error on /api/auth/login:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/google - Login atau Daftar via Google OAuth
+app.post("/api/auth/google", async (req, res) => {
+  const { email, name, avatar } = req.body;
+
+  if (!email || !email.trim()) {
+    return res.status(400).json({ error: "Email akun Google diperlukan." });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const displayName = name ? name.trim() : cleanEmail.split("@")[0];
+
+  try {
+    if (prisma) {
+      try {
+        let user = await prisma.user.findFirst({
+          where: {
+            email: {
+              equals: cleanEmail,
+              mode: "insensitive",
+            },
+          },
+        });
+
+        if (user) {
+          if (avatar && !user.avatarUrl) {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: { avatarUrl: avatar },
+            });
+          }
+          return res.json({
+            message: "Login Google berhasil!",
+            user: formatUserResponse(user),
+          });
+        }
+
+        const newUser = await prisma.user.create({
+          data: {
+            fullName: displayName,
+            email: cleanEmail,
+            avatarUrl: avatar || null,
+          },
+        });
+
+        return res.status(201).json({
+          message: "Akun Google berhasil didaftarkan!",
+          user: formatUserResponse(newUser),
+        });
+      } catch (prismaErr) {
+        console.warn("Prisma error on /api/auth/google, falling back to Supabase:", prismaErr.message);
+      }
+    }
+
+    // Fallback: Supabase Client SDK
+    if (!supabase) {
+      return res.status(503).json({ error: "Layanan database tidak tersedia." });
+    }
+
+    const { data: existing } = await supabase
+      .from("users")
+      .select("*")
+      .ilike("email", cleanEmail)
+      .maybeSingle();
+
+    if (existing) {
+      return res.json({
+        message: "Login Google berhasil!",
+        user: formatUserResponse(existing),
+      });
+    }
+
+    const { data: created, error } = await supabase
+      .from("users")
+      .insert({
+        full_name: displayName,
+        email: cleanEmail,
+        avatar_url: avatar || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.status(201).json({
+      message: "Akun Google berhasil didaftarkan!",
+      user: formatUserResponse(created),
+    });
+  } catch (err) {
+    console.error("Server error on /api/auth/google:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/change-password - Ganti kata sandi akun
+app.post("/api/auth/change-password", async (req, res) => {
+  const { email, currentPassword, newPassword } = req.body;
+
+  if (!email || !newPassword) {
+    return res.status(400).json({ error: "Email dan kata sandi baru wajib diisi." });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: "Kata sandi baru minimal harus 8 karakter." });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  try {
+    let user = null;
+
+    if (prisma) {
+      user = await prisma.user.findFirst({
+        where: { email: { equals: cleanEmail, mode: "insensitive" } },
+      });
+    } else if (supabase) {
+      const { data } = await supabase
+        .from("users")
+        .select("*")
+        .ilike("email", cleanEmail)
+        .maybeSingle();
+      user = data;
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: "Pengguna tidak ditemukan." });
+    }
+
+    const currentHash = user.passwordHash || user.password_hash;
+    if (currentHash) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: "Kata sandi saat ini harus diisi." });
+      }
+      const isMatch = bcrypt.compareSync(currentPassword, currentHash);
+      if (!isMatch) {
+        return res.status(401).json({ error: "Kata sandi saat ini tidak cocok." });
+      }
+    }
+
+    const newHash = bcrypt.hashSync(newPassword, 10);
+
+    if (prisma) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: newHash },
+      });
+    } else if (supabase) {
+      await supabase
+        .from("users")
+        .update({ password_hash: newHash, updated_at: new Date().toISOString() })
+        .eq("id", user.id);
+    }
+
+    return res.json({ message: "Kata sandi berhasil diperbarui!" });
+  } catch (err) {
+    console.error("Server error on change-password:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/reset-password - Reset kata sandi berdasarkan email
+app.post("/api/auth/reset-password", async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  if (!email || !newPassword) {
+    return res.status(400).json({ error: "Email dan kata sandi baru wajib diisi." });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: "Kata sandi baru minimal harus 8 karakter." });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  try {
+    let user = null;
+
+    if (prisma) {
+      user = await prisma.user.findFirst({
+        where: { email: { equals: cleanEmail, mode: "insensitive" } },
+      });
+    } else if (supabase) {
+      const { data } = await supabase
+        .from("users")
+        .select("*")
+        .ilike("email", cleanEmail)
+        .maybeSingle();
+      user = data;
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        error: "Email tidak terdaftar dalam sistem. Silakan periksa kembali atau buat akun baru.",
+      });
+    }
+
+    const newHash = bcrypt.hashSync(newPassword, 10);
+
+    if (prisma) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: newHash },
+      });
+    } else if (supabase) {
+      await supabase
+        .from("users")
+        .update({ password_hash: newHash, updated_at: new Date().toISOString() })
+        .eq("id", user.id);
+    }
+
+    return res.json({
+      message: "Kata sandi Anda berhasil diperbarui! Silakan masuk dengan kata sandi baru Anda.",
+    });
+  } catch (err) {
+    console.error("Server error on reset-password:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ==========================================

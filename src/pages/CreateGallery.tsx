@@ -16,7 +16,8 @@ import { getUser, getGalleries, saveGalleries, type Gallery } from "../utils/sto
 import "../styles/CreateGallery.css";
 
 function CreateGallery() {
-  const [user, setUser] = useState(() => getUser());
+  const [user] = useState(() => getUser());
+
 
   useEffect(() => {
     if (!user || !user.email) {

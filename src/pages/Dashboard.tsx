@@ -22,6 +22,10 @@ import {
   Download,
   Copy,
   Check,
+  Lock,
+  EyeOff,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
@@ -41,6 +45,8 @@ import {
   deleteGalleryFromSupabase,
   isSupabaseConfigured,
 } from "../lib/supabase";
+
+import { changeUserPassword } from "../lib/auth";
 
 import "../styles/dashboard.css";
 
@@ -83,6 +89,17 @@ function Dashboard() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileName, setProfileName] = useState(user?.name || "");
   const [profileEmail, setProfileEmail] = useState(user?.email || "");
+
+  // Password settings modal state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPass, setCurrentPass] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [passwordStatus, setPasswordStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
 
   // Name required prompt if user has no name
   const isNameMissing = !user || !user.name || user.name.trim().length === 0;
@@ -235,6 +252,37 @@ function Dashboard() {
     }
   };
 
+  async function handleChangePassword(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!user?.email) return;
+
+    if (newPass.length < 8) {
+      setPasswordStatus({ type: "error", text: "Kata sandi baru minimal harus 8 karakter." });
+      return;
+    }
+
+    if (newPass !== confirmPass) {
+      setPasswordStatus({ type: "error", text: "Konfirmasi kata sandi baru tidak cocok." });
+      return;
+    }
+
+    setPasswordLoading(true);
+    setPasswordStatus(null);
+
+    const res = await changeUserPassword(user.email, currentPass, newPass);
+    setPasswordLoading(false);
+
+    if (!res.success) {
+      setPasswordStatus({ type: "error", text: res.error || "Gagal mengubah kata sandi." });
+      return;
+    }
+
+    setPasswordStatus({ type: "success", text: "Kata sandi Anda berhasil diperbarui di database!" });
+    setCurrentPass("");
+    setNewPass("");
+    setConfirmPass("");
+  }
+
   return (
     <main className="dashboard-page">
       <header className="dashboard-navbar">
@@ -284,6 +332,20 @@ function Dashboard() {
               >
                 <Settings size={16} /> Pengaturan Profil
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileOpen(false);
+                  setCurrentPass("");
+                  setNewPass("");
+                  setConfirmPass("");
+                  setPasswordStatus(null);
+                  setShowPasswordModal(true);
+                }}
+              >
+                <Lock size={16} /> Pengaturan Kata Sandi
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -802,6 +864,157 @@ function Dashboard() {
                 </button>
                 <button type="submit" className="dashboard-modal-submit">
                   Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {/* MODAL PENGATURAN KATA SANDI */}
+      {showPasswordModal && (
+        <div
+          className="dashboard-modal-backdrop"
+          onClick={() => setShowPasswordModal(false)}
+        >
+          <section
+            className="dashboard-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "460px" }}
+          >
+            <div className="dashboard-modal-heading">
+              <div>
+                <h2>Pengaturan Kata Sandi</h2>
+                <p>Ubah kata sandi akun untuk keamanan akun Anda.</p>
+              </div>
+              <button
+                type="button"
+                className="dashboard-modal-close"
+                onClick={() => setShowPasswordModal(false)}
+                aria-label="Tutup"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword}>
+              <label htmlFor="current-pass">Kata Sandi Saat Ini</label>
+              <div style={{ position: "relative" }}>
+                <input
+                  id="current-pass"
+                  type={showCurrentPass ? "text" : "password"}
+                  placeholder="Masukkan kata sandi lama (jika ada)"
+                  value={currentPass}
+                  onChange={(e) => setCurrentPass(e.target.value)}
+                  style={{ width: "100%", paddingRight: "40px" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPass(!showCurrentPass)}
+                  style={{
+                    position: "absolute",
+                    right: "10px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "#6b7280",
+                  }}
+                  aria-label="Toggle password"
+                >
+                  {showCurrentPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+
+              <label htmlFor="new-pass" style={{ marginTop: "14px", display: "block" }}>
+                Kata Sandi Baru
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  id="new-pass"
+                  type={showNewPass ? "text" : "password"}
+                  placeholder="Minimal 8 karakter"
+                  value={newPass}
+                  onChange={(e) => setNewPass(e.target.value)}
+                  minLength={8}
+                  required
+                  style={{ width: "100%", paddingRight: "40px" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPass(!showNewPass)}
+                  style={{
+                    position: "absolute",
+                    right: "10px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "#6b7280",
+                  }}
+                  aria-label="Toggle password"
+                >
+                  {showNewPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+
+              <label htmlFor="confirm-pass" style={{ marginTop: "14px", display: "block" }}>
+                Konfirmasi Kata Sandi Baru
+              </label>
+              <input
+                id="confirm-pass"
+                type="password"
+                placeholder="Ulangi kata sandi baru"
+                value={confirmPass}
+                onChange={(e) => setConfirmPass(e.target.value)}
+                minLength={8}
+                required
+                style={{ width: "100%" }}
+              />
+
+              {passwordStatus && (
+                <div
+                  style={{
+                    marginTop: "14px",
+                    padding: "10px 12px",
+                    borderRadius: "6px",
+                    fontSize: "13px",
+                    backgroundColor: passwordStatus.type === "success" ? "#f0fdf4" : "#fef2f2",
+                    color: passwordStatus.type === "success" ? "#166534" : "#991b1b",
+                    border: `1px solid ${passwordStatus.type === "success" ? "#bbf7d0" : "#fecaca"}`,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  {passwordStatus.type === "success" ? (
+                    <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+                  ) : (
+                    <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  )}
+                  <span>{passwordStatus.text}</span>
+                </div>
+              )}
+
+              <div className="dashboard-modal-actions" style={{ marginTop: "20px" }}>
+                <button
+                  type="button"
+                  className="dashboard-modal-cancel"
+                  onClick={() => setShowPasswordModal(false)}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="dashboard-modal-submit"
+                  disabled={passwordLoading}
+                  style={{ opacity: passwordLoading ? 0.7 : 1 }}
+                >
+                  {passwordLoading ? "Menyimpan ke Database..." : "Simpan Kata Sandi Baru"}
                 </button>
               </div>
             </form>

@@ -1,10 +1,10 @@
 import { useGoogleLogin } from "@react-oauth/google";
 import { useState } from "react";
-import { Mail, Lock, Eye, EyeOff, User, ArrowRight } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, User, ArrowRight, AlertCircle, UserPlus, Loader2 } from "lucide-react";
 
 import heroImage from "../assets/login.jpg";
 import logoImage from "../assets/logo.jpg";
-import { saveUser, getUser } from "../utils/storage";
+import { loginUser, loginWithGoogleOAuth } from "../lib/auth";
 import "../styles/auth.css";
 
 function Login() {
@@ -12,6 +12,8 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [isNotRegistered, setIsNotRegistered] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Modal to complete name if needed
   const [showNameModal, setShowNameModal] = useState(false);
@@ -24,6 +26,10 @@ function Login() {
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
+        setLoading(true);
+        setMessage("");
+        setIsNotRegistered(false);
+
         const response = await fetch(
           "https://www.googleapis.com/oauth2/v3/userinfo",
           {
@@ -39,21 +45,26 @@ function Login() {
 
         const data = await response.json();
         
-        // If Google provides a name, check or ask
         if (data.name && data.name.trim().length > 0) {
-          saveUser({
-            name: data.name.trim(),
-            email: data.email,
-            avatar: data.picture,
-          });
-          window.location.href = redirectUrl;
+          const authRes = await loginWithGoogleOAuth(
+            data.email,
+            data.name.trim(),
+            data.picture
+          );
+
+          if (authRes.success) {
+            window.location.href = redirectUrl;
+          } else {
+            setMessage(authRes.error || "Gagal masuk menggunakan Google.");
+          }
         } else {
-          // Name is missing, prompt user to enter their name first
           setPendingUser({ email: data.email, avatar: data.picture });
           setShowNameModal(true);
         }
       } catch {
         setMessage("Login Google gagal. Silakan coba lagi.");
+      } finally {
+        setLoading(false);
       }
     },
     onError: () => {
@@ -61,42 +72,53 @@ function Login() {
     },
   });
 
-  function handleSaveNameModal(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSaveNameModal(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!fullName.trim() || !pendingUser) return;
 
-    saveUser({
-      name: fullName.trim(),
-      email: pendingUser.email,
-      avatar: pendingUser.avatar,
-    });
+    setLoading(true);
+    const authRes = await loginWithGoogleOAuth(
+      pendingUser.email,
+      fullName.trim(),
+      pendingUser.avatar
+    );
+    setLoading(false);
 
-    window.location.href = redirectUrl;
+    if (authRes.success) {
+      window.location.href = redirectUrl;
+    } else {
+      setMessage(authRes.error || "Gagal menyimpan akun.");
+    }
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!email.trim() || !password) {
       setMessage("Silakan masukkan email dan kata sandi.");
+      setIsNotRegistered(false);
       return;
     }
 
-    // Check if user already exists
-    const existing = getUser();
-    const displayName =
-      existing && existing.email === email && existing.name
-        ? existing.name
-        : email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    setLoading(true);
+    setMessage("");
+    setIsNotRegistered(false);
 
-    saveUser({
-      name: displayName,
-      email: email.trim(),
-      avatar: existing?.avatar,
-    });
+    const result = await loginUser(email.trim(), password);
+    setLoading(false);
 
+    if (!result.success) {
+      setMessage(result.error || "Login gagal. Silakan periksa email dan kata sandi Anda.");
+      if (result.notRegistered) {
+        setIsNotRegistered(true);
+      }
+      return;
+    }
+
+    // Login berhasil
     window.location.href = redirectUrl;
   }
+
 
   return (
     <main className="login-design">
@@ -200,13 +222,45 @@ function Login() {
               </div>
 
               {message && (
-                <p className="login-message" role="status">
-                  {message}
-                </p>
+                <div
+                  className={`login-message ${isNotRegistered ? "login-message-alert" : ""}`}
+                  role="status"
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                    <AlertCircle size={18} style={{ flexShrink: 0, marginTop: "2px", color: isNotRegistered ? "#c53030" : "#a16207" }} />
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: 0, fontWeight: 500 }}>{message}</p>
+                      {isNotRegistered && (
+                        <div style={{ marginTop: "10px" }}>
+                          <a
+                            href={`/register?redirect=${encodeURIComponent(redirectUrl)}&email=${encodeURIComponent(email)}`}
+                            className="login-register-alert-btn"
+                          >
+                            <UserPlus size={15} />
+                            <span>Daftar Akun Baru Sekarang</span>
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               )}
 
-              <button type="submit" className="login-submit-button">
-                Masuk
+              <button
+                type="submit"
+                className="login-submit-button"
+                disabled={loading}
+                style={{
+                  opacity: loading ? 0.75 : 1,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                }}
+              >
+                {loading && <Loader2 size={18} className="spin-animate" />}
+                <span>{loading ? "Memverifikasi Akun..." : "Masuk"}</span>
               </button>
             </form>
 
