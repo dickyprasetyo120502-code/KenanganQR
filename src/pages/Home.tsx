@@ -4,6 +4,7 @@ import { Images, QrCode, Users } from "lucide-react";
 import heroImage from "../assets/hero-kenangan.jpg";
 import logoImage from "../assets/logo.jpg";
 import { getUser } from "../utils/storage";
+import MidtransPaymentModal from "../components/MidtransPaymentModal";
 import "../styles/home.css";
 const features = [
   {
@@ -68,6 +69,12 @@ const plans = [
 
 function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showMidtransModal, setShowMidtransModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState({
+    name: "Premium",
+    price: 50000,
+    duration: "30 hari",
+  });
   const user = getUser();
 
   const handleStartGallery = (event?: MouseEvent) => {
@@ -78,6 +85,21 @@ function Home() {
     } else {
       window.location.href = "/login?redirect=/dashboard/create";
     }
+  };
+
+  const handlePlanClick = (event: MouseEvent, plan: (typeof plans)[0]) => {
+    event.preventDefault();
+    if (plan.name === "Gratis") {
+      handleStartGallery();
+      return;
+    }
+    const priceNum = parseInt(plan.price.replace(/[^0-9]/g, ""), 10) || 50000;
+    setSelectedPlan({
+      name: plan.name,
+      price: priceNum,
+      duration: plan.period,
+    });
+    setShowMidtransModal(true);
   };
 
   return (
@@ -247,17 +269,17 @@ function Home() {
                 ))}
               </ul>
 
-              <a
+              <button
+                type="button"
                 className={
                   plan.className
                     ? "plan-button plan-button-gold"
                     : "plan-button"
                 }
-                href="/login?redirect=/dashboard/create"
-                onClick={handleStartGallery}
+                onClick={(e) => handlePlanClick(e, plan)}
               >
-                {plan.button}
-              </a>
+                {plan.name === "Gratis" ? plan.button : `Bayar ${plan.name} (Midtrans)`}
+              </button>
             </article>
           ))}
         </div>
@@ -297,6 +319,21 @@ function Home() {
         <p>Setiap momen berarti, setiap cerita abadi.</p>
         <span>© 2026 KenanganQR</span>
       </footer>
+
+      {/* MODAL PEMBAYARAN MIDTRANS */}
+      <MidtransPaymentModal
+        isOpen={showMidtransModal}
+        onClose={() => setShowMidtransModal(false)}
+        planName={selectedPlan.name}
+        planPrice={selectedPlan.price}
+        planDuration={selectedPlan.duration}
+        userEmail={user?.email || "tamu@kenanganqr.com"}
+        userName={user?.name || "Pengguna KenanganQR"}
+        onPaymentSuccess={(info) => {
+          alert(`Pembayaran Midtrans berhasil (${info.orderId})! Paket ${info.planName} aktif.`);
+          window.location.href = user ? "/dashboard" : "/login?redirect=/dashboard";
+        }}
+      />
     </main>
   );
 }

@@ -271,23 +271,15 @@ export async function loginWithGoogleOAuth(
 
     const parsed = await parseResponseSafe(res);
     if (parsed.isJson && parsed.data) {
-      if (!res.ok) {
+      if (res.ok && parsed.data.user) {
+        saveUser(parsed.data.user);
         return {
-          success: false,
-          error: parsed.data.error || "Gagal memproses akun Google.",
-          notRegistered: res.status === 404 || parsed.data.notRegistered,
+          success: true,
+          message: parsed.data.message || "Login Google berhasil!",
+          user: parsed.data.user,
         };
       }
-
-      if (parsed.data.user) {
-        saveUser(parsed.data.user);
-      }
-
-      return {
-        success: true,
-        message: parsed.data.message || "Login Google berhasil!",
-        user: parsed.data.user,
-      };
+      console.warn("Express API /google returned error, proceeding to Supabase fallback:", parsed.data);
     }
   } catch (err) {
     console.warn("Express backend API tidak dapat dijangkau, beralih ke Supabase Google fallback:", err);
@@ -302,11 +294,15 @@ export async function loginWithGoogleOAuth(
   }
 
   try {
-    const { data: existingUser } = await supabase
+    const { data: existingUser, error: fetchErr } = await supabase
       .from("users")
       .select("*")
       .ilike("email", cleanEmail)
       .maybeSingle();
+
+    if (fetchErr) {
+      console.warn("Supabase check user error:", fetchErr);
+    }
 
     let finalUser = existingUser;
 
@@ -317,7 +313,7 @@ export async function loginWithGoogleOAuth(
           .update({ avatar_url: avatar, updated_at: new Date().toISOString() })
           .eq("id", existingUser.id)
           .select()
-          .single();
+          .maybeSingle();
         if (updated) finalUser = updated;
       }
     } else {
@@ -342,9 +338,9 @@ export async function loginWithGoogleOAuth(
     }
 
     const userProfile: UserProfile = {
-      name: finalUser.full_name || displayName,
+      name: finalUser.full_name || finalUser.fullName || displayName,
       email: finalUser.email,
-      avatar: finalUser.avatar_url || avatar || undefined,
+      avatar: finalUser.avatar_url || finalUser.avatarUrl || avatar || undefined,
     };
 
     saveUser(userProfile);

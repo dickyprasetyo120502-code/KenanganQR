@@ -26,8 +26,12 @@ import {
   EyeOff,
   AlertCircle,
   CheckCircle2,
+  Sparkles,
+  CreditCard,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
+import { downloadDesignedQRCard } from "../utils/qrDesign";
+import MidtransPaymentModal from "../components/MidtransPaymentModal";
 
 import {
   getUser,
@@ -84,6 +88,12 @@ function Dashboard() {
   const [notice, setNotice] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [showMidtransModal, setShowMidtransModal] = useState(false);
+  const [midtransPlan, setMidtransPlan] = useState<{ name: string; price: number; duration: string }>({
+    name: "Premium",
+    price: 50000,
+    duration: "30 hari akses",
+  });
 
   // Profile modal state
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -240,15 +250,26 @@ function Dashboard() {
     }
   };
 
-  const handleDownloadQR = (gallery: Gallery) => {
+  const handleDownloadQR = (gallery: Gallery, mode: "designed" | "plain" = "designed") => {
     const canvas = document.querySelector("#dashboard-qr-canvas") as HTMLCanvasElement;
     if (canvas) {
-      const pngUrl = canvas.toDataURL("image/png");
-      const downloadLink = document.createElement("a");
-      downloadLink.href = pngUrl;
-      downloadLink.download = `QR-${gallery.title.replace(/\s+/g, "-")}.png`;
-      downloadLink.click();
-      setNotice("QR Code berhasil diunduh.");
+      if (mode === "designed") {
+        downloadDesignedQRCard({
+          qrCanvas: canvas,
+          title: gallery.title,
+          category: gallery.category,
+          eventDate: gallery.date,
+          guestUrl: `${window.location.origin}/galeri?id=${gallery.id}`,
+        });
+        setNotice("Kartu Desain QR Code berhasil diunduh (Format siap cetak).");
+      } else {
+        const pngUrl = canvas.toDataURL("image/png");
+        const downloadLink = document.createElement("a");
+        downloadLink.href = pngUrl;
+        downloadLink.download = `QR-${gallery.title.replace(/\s+/g, "-")}.png`;
+        downloadLink.click();
+        setNotice("Gambar QR Code polos berhasil diunduh.");
+      }
     }
   };
 
@@ -378,16 +399,36 @@ function Dashboard() {
             <p>Kelola semua galeri kenangan Anda</p>
           </div>
 
-          <button
-            type="button"
-            className="dashboard-create-button"
-            onClick={() => {
-              window.location.href = "/dashboard/create";
-            }}
-          >
-            <PlusCircle size={20} />
-            Buat Galeri Baru
-          </button>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="dashboard-create-button"
+              style={{
+                background: "linear-gradient(135deg, #002b49 0%, #001f35 100%)",
+                border: "1px solid #00a2e8",
+                boxShadow: "0 4px 14px rgba(0, 43, 73, 0.2)",
+              }}
+              onClick={() => {
+                setMidtransPlan({ name: "Premium", price: 50000, duration: "30 hari akses" });
+                setShowMidtransModal(true);
+              }}
+              title="Berlangganan paket KenanganQR dengan Midtrans"
+            >
+              <CreditCard size={18} color="#00a2e8" />
+              Berlangganan Paket
+            </button>
+
+            <button
+              type="button"
+              className="dashboard-create-button"
+              onClick={() => {
+                window.location.href = "/dashboard/create";
+              }}
+            >
+              <PlusCircle size={20} />
+              Buat Galeri Baru
+            </button>
+          </div>
         </div>
 
         {notice && (
@@ -749,49 +790,135 @@ function Dashboard() {
             <h2 id="qr-modal-title">QR Code untuk Tamu</h2>
             <p className="dashboard-qr-gallery-title">{selectedQR.title}</p>
 
-            <div className="dashboard-qr-canvas-card" ref={qrCanvasRef}>
-              <QRCodeCanvas
-                id="dashboard-qr-canvas"
-                value={`${window.location.origin}/galeri?id=${selectedQR.id}`}
-                size={220}
-                bgColor="#ffffff"
-                fgColor="#241e15"
-                level="H"
-                includeMargin={true}
-              />
+            {/* KOTAK BERDESAIN MEWAH SIAP CETAK */}
+            <div
+              style={{
+                background: "linear-gradient(145deg, #fdfbf7 0%, #faf3e8 100%)",
+                border: "2px solid #deb857",
+                borderRadius: "20px",
+                padding: "18px",
+                margin: "12px auto 16px",
+                maxWidth: "340px",
+                textAlign: "center",
+                boxShadow: "0 8px 24px rgba(189, 152, 65, 0.12)",
+              }}
+            >
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: "#ffffff",
+                  border: "1px solid #d4af37",
+                  borderRadius: "20px",
+                  padding: "3px 12px",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "#946800",
+                  marginBottom: "8px",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                <Sparkles size={12} />
+                <span>KENANGAN QR</span>
+              </div>
+
+              <h4 style={{ margin: "0 0 2px", fontSize: "15px", fontWeight: 700, color: "#231f1a" }}>
+                {selectedQR.title}
+              </h4>
+              <p style={{ margin: "0 0 12px", fontSize: "11.5px", color: "#8a661c", fontWeight: 500 }}>
+                ✦ {selectedQR.category || "Pernikahan"} • {selectedQR.date} ✦
+              </p>
+
+              {/* Box putih wadah QR */}
+              <div
+                className="dashboard-qr-canvas-card"
+                ref={qrCanvasRef}
+                style={{
+                  padding: "12px",
+                  background: "#ffffff",
+                  border: "1.5px solid #ecd9b3",
+                  borderRadius: "14px",
+                  margin: "0 auto",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.04)",
+                  width: "fit-content",
+                }}
+              >
+                <QRCodeCanvas
+                  id="dashboard-qr-canvas"
+                  value={`${window.location.origin}/galeri?id=${selectedQR.id}`}
+                  size={200}
+                  bgColor="#ffffff"
+                  fgColor="#241e15"
+                  level="H"
+                  includeMargin={true}
+                />
+              </div>
+
+              <div
+                style={{
+                  display: "inline-block",
+                  background: "linear-gradient(135deg, #d8ab3e 0%, #b5871f 100%)",
+                  color: "#ffffff",
+                  borderRadius: "16px",
+                  padding: "4px 14px",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  marginTop: "12px",
+                  boxShadow: "0 2px 8px rgba(181, 135, 31, 0.3)",
+                }}
+              >
+                📷 PINDAI SAYA
+              </div>
             </div>
 
             <p className="dashboard-qr-note">
               Ajak tamu memindai QR Code ini untuk melihat foto dan mengirimkan ucapan langsung.
             </p>
 
-            <div className="dashboard-qr-modal-actions">
+            <div className="dashboard-qr-modal-actions" style={{ flexDirection: "column", gap: "8px" }}>
               <button
                 type="button"
                 className="dashboard-modal-submit"
-                onClick={() => handleDownloadQR(selectedQR)}
+                style={{ width: "100%" }}
+                onClick={() => handleDownloadQR(selectedQR, "designed")}
+                title="Unduh format kartu desain elegan lengkap siap cetak"
               >
                 <Download size={18} />
-                Unduh Gambar QR
+                Unduh Desain Kartu QR (Siap Cetak)
               </button>
 
-              <button
-                type="button"
-                className="dashboard-modal-cancel"
-                onClick={() => handleCopyLink(selectedQR)}
-              >
-                {copiedId === selectedQR.id ? (
-                  <>
-                    <Check size={18} color="#2e7d32" />
-                    Tersalin!
-                  </>
-                ) : (
-                  <>
-                    <Copy size={18} />
-                    Salin Link
-                  </>
-                )}
-              </button>
+              <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+                <button
+                  type="button"
+                  className="dashboard-modal-cancel"
+                  style={{ flex: 1, fontSize: "12.5px" }}
+                  onClick={() => handleDownloadQR(selectedQR, "plain")}
+                  title="Unduh hanya gambar QR Code polos"
+                >
+                  <QrCode size={16} />
+                  QR Polos
+                </button>
+
+                <button
+                  type="button"
+                  className="dashboard-modal-cancel"
+                  style={{ flex: 1, fontSize: "12.5px" }}
+                  onClick={() => handleCopyLink(selectedQR)}
+                >
+                  {copiedId === selectedQR.id ? (
+                    <>
+                      <Check size={16} color="#2e7d32" />
+                      Tersalin!
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={16} />
+                      Salin Link
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </section>
         </div>
@@ -1061,6 +1188,20 @@ function Dashboard() {
           </section>
         </div>
       )}
+
+      {/* MODAL PEMBAYARAN MIDTRANS */}
+      <MidtransPaymentModal
+        isOpen={showMidtransModal}
+        onClose={() => setShowMidtransModal(false)}
+        planName={midtransPlan.name}
+        planPrice={midtransPlan.price}
+        planDuration={midtransPlan.duration}
+        userEmail={user?.email || "user@kenanganqr.com"}
+        userName={user?.name || "Pengguna KenanganQR"}
+        onPaymentSuccess={(info) => {
+          setNotice(`Pembayaran Midtrans berhasil (${info.orderId})! Langganan Paket ${info.planName} aktif.`);
+        }}
+      />
     </main>
   );
 }

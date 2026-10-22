@@ -1,6 +1,6 @@
 import { useGoogleLogin } from "@react-oauth/google";
 import { useState } from "react";
-import { Eye, EyeOff, Images, Users, Infinity as InfinityIcon, User, ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Images, Users, Infinity as InfinityIcon, Loader2, AlertCircle } from "lucide-react";
 
 import heroImage from "../assets/register.jpg";
 import logoImage from "../assets/logo.jpg";
@@ -21,10 +21,6 @@ function Register() {
   const [agreed, setAgreed] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const [showNameModal, setShowNameModal] = useState(false);
-  const [pendingGoogleUser, setPendingGoogleUser] = useState<{ email: string; avatar?: string } | null>(null);
-  const [googleName, setGoogleName] = useState("");
 
   const strength =
     password.length === 0
@@ -95,22 +91,24 @@ function Register() {
 
         const data = await response.json();
 
-        if (data.name && data.name.trim().length > 0) {
-          const authRes = await loginWithGoogleOAuth(
-            data.email,
-            data.name.trim(),
-            data.picture,
-            "register"
-          );
+        const candidateName =
+          data.name && data.name.trim().length > 0
+            ? data.name.trim()
+            : data.email
+              ? data.email.split("@")[0]
+              : "Pengguna Kenangan";
 
-          if (authRes.success) {
-            window.location.href = redirectUrl;
-          } else {
-            setMessage(authRes.error || "Pendaftaran Google gagal.");
-          }
+        const authRes = await loginWithGoogleOAuth(
+          data.email,
+          candidateName,
+          data.picture,
+          "register"
+        );
+
+        if (authRes.success) {
+          window.location.href = redirectUrl;
         } else {
-          setPendingGoogleUser({ email: data.email, avatar: data.picture });
-          setShowNameModal(true);
+          setMessage(authRes.error || "Pendaftaran Google gagal.");
         }
       } catch (err: unknown) {
         console.error("Google register error:", err);
@@ -125,26 +123,6 @@ function Register() {
       setMessage("Login Google dibatalkan atau popup ditutup.");
     },
   });
-
-  async function handleSaveGoogleName(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!googleName.trim() || !pendingGoogleUser) return;
-
-    setLoading(true);
-    const authRes = await loginWithGoogleOAuth(
-      pendingGoogleUser.email,
-      googleName.trim(),
-      pendingGoogleUser.avatar,
-      "register"
-    );
-    setLoading(false);
-
-    if (authRes.success) {
-      window.location.href = redirectUrl;
-    } else {
-      setMessage(authRes.error || "Gagal menyimpan akun.");
-    }
-  }
 
 
   return (
@@ -378,47 +356,6 @@ function Register() {
         </div>
       </section>
 
-      {showNameModal && (
-        <div className="auth-modal-overlay">
-          <div className="auth-modal-card">
-            <div className="auth-modal-icon">
-              <User size={28} />
-            </div>
-            <h3>Selamat Datang!</h3>
-            <p>
-              Akun Google Anda ({pendingGoogleUser?.email}) berhasil terhubung. Silakan masukkan nama lengkap Anda untuk akun KenanganQR.
-            </p>
-
-            <form onSubmit={handleSaveGoogleName} className="auth-modal-form">
-              <div className="login-input-box" style={{ marginBottom: "16px" }}>
-                <User size={20} />
-                <input
-                  type="text"
-                  placeholder="Nama Lengkap Anda"
-                  value={googleName}
-                  onChange={(e) => setGoogleName(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="login-submit-button"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                }}
-              >
-                <span>Lanjutkan</span>
-                <ArrowRight size={18} />
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

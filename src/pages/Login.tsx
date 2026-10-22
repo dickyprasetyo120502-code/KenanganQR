@@ -1,6 +1,6 @@
 import { useGoogleLogin } from "@react-oauth/google";
 import { useState } from "react";
-import { Mail, Lock, Eye, EyeOff, User, ArrowRight, AlertCircle, UserPlus, Loader2 } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, AlertCircle, UserPlus, Loader2 } from "lucide-react";
 
 import heroImage from "../assets/login.jpg";
 import logoImage from "../assets/logo.jpg";
@@ -18,11 +18,6 @@ function Login() {
   const [message, setMessage] = useState("");
   const [isNotRegistered, setIsNotRegistered] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Modal to complete name if needed
-  const [showNameModal, setShowNameModal] = useState(false);
-  const [pendingUser, setPendingUser] = useState<{ email: string; avatar?: string } | null>(null);
-  const [fullName, setFullName] = useState("");
 
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
@@ -46,22 +41,25 @@ function Login() {
 
         const data = await response.json();
         
-        if (data.name && data.name.trim().length > 0) {
-          const authRes = await loginWithGoogleOAuth(
-            data.email,
-            data.name.trim(),
-            data.picture,
-            "login"
-          );
+        // Gunakan nama dari Google atau fallback nama akun
+        const candidateName =
+          data.name && data.name.trim().length > 0
+            ? data.name.trim()
+            : data.email
+              ? data.email.split("@")[0]
+              : "Pengguna Kenangan";
 
-          if (authRes.success) {
-            window.location.href = redirectUrl;
-          } else {
-            setMessage(authRes.error || "Gagal masuk menggunakan Google.");
-          }
+        const authRes = await loginWithGoogleOAuth(
+          data.email,
+          candidateName,
+          data.picture,
+          "login"
+        );
+
+        if (authRes.success) {
+          window.location.href = redirectUrl;
         } else {
-          setPendingUser({ email: data.email, avatar: data.picture });
-          setShowNameModal(true);
+          setMessage(authRes.error || "Gagal masuk menggunakan Google.");
         }
       } catch (err: unknown) {
         console.error("Google login error:", err);
@@ -76,33 +74,6 @@ function Login() {
       setMessage("Login Google dibatalkan atau popup ditutup. Pastikan Authorized JavaScript Origins di Google Cloud Console telah mengizinkan http://localhost:5173.");
     },
   });
-
-  async function handleSaveNameModal(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!fullName.trim() || !pendingUser) return;
-
-    setLoading(true);
-    const authRes = await loginWithGoogleOAuth(
-      pendingUser.email,
-      fullName.trim(),
-      pendingUser.avatar,
-      "login"
-    );
-    setLoading(false);
-
-    if (authRes.success) {
-      window.location.href = redirectUrl;
-    } else {
-      if (authRes.notRegistered) {
-        setEmail(pendingUser.email);
-        setIsNotRegistered(true);
-        setShowNameModal(false);
-        setMessage(authRes.error || "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!");
-      } else {
-        setMessage(authRes.error || "Gagal menyimpan akun.");
-      }
-    }
-  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -305,39 +276,6 @@ function Login() {
       </div>
     </div>
   </section>
-
-  {showNameModal && (
-    <div className="auth-modal-overlay">
-      <div className="auth-modal-card">
-        <div className="auth-modal-icon">
-          <User size={28} />
-        </div>
-        <h3>Selamat Datang!</h3>
-        <p>
-          Akun Google Anda ({pendingUser?.email}) berhasil terhubung. Silakan masukkan nama lengkap Anda untuk akun KenanganQR.
-        </p>
-
-        <form onSubmit={handleSaveNameModal} className="auth-modal-form">
-          <div className="login-input-box" style={{ marginBottom: "16px" }}>
-            <User size={20} />
-            <input
-              type="text"
-              placeholder="Nama Lengkap Anda"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-              autoFocus
-            />
-          </div>
-
-          <button type="submit" className="login-submit-button" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-            <span>Lanjutkan</span>
-            <ArrowRight size={18} />
-          </button>
-        </form>
-      </div>
-    </div>
-  )}
 </main>
   );
 }

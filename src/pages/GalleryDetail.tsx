@@ -17,8 +17,12 @@ import {
   CalendarDays,
   LogOut,
   X,
+  Sparkles,
+  CreditCard,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
+import { downloadDesignedQRCard } from "../utils/qrDesign";
+import MidtransPaymentModal from "../components/MidtransPaymentModal";
 
 import {
   getUser,
@@ -134,6 +138,7 @@ function GalleryDetail() {
   }, [queryId, user?.email]);
 
   const [packageType, setPackageType] = useState<"basic" | "premium">("basic");
+  const [showMidtransModal, setShowMidtransModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [notice, setNotice] = useState("");
@@ -341,22 +346,31 @@ function GalleryDetail() {
     }
   };
 
-  const handleDownloadQR = () => {
+  const handleDownloadQR = (mode: "designed" | "plain" = "designed") => {
     const canvas = document.querySelector("#gd-guest-qr-canvas") as HTMLCanvasElement;
     if (canvas) {
-      const pngUrl = canvas.toDataURL("image/png");
-      const downloadLink = document.createElement("a");
-      downloadLink.href = pngUrl;
-      downloadLink.download = `QR-${gallery.title.replace(/\s+/g, "-")}.png`;
-      downloadLink.click();
-      setNotice("QR Code berhasil diunduh.");
+      if (mode === "designed") {
+        downloadDesignedQRCard({
+          qrCanvas: canvas,
+          title: gallery.title,
+          category: gallery.category,
+          eventDate: gallery.date,
+          guestUrl,
+        });
+        setNotice("Kartu Desain QR Code berhasil diunduh (Format siap cetak).");
+      } else {
+        const pngUrl = canvas.toDataURL("image/png");
+        const downloadLink = document.createElement("a");
+        downloadLink.href = pngUrl;
+        downloadLink.download = `QR-${gallery.title.replace(/\s+/g, "-")}.png`;
+        downloadLink.click();
+        setNotice("Gambar QR Code polos berhasil diunduh.");
+      }
     }
   };
 
   const handleDownload = () => {
-    setNotice(
-      `Paket ${packageType === "premium" ? "Premium (Rp 50.000)" : "Basic (Rp 19.000)"} siap diproses.`
-    );
+    setShowMidtransModal(true);
   };
 
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -785,31 +799,100 @@ function GalleryDetail() {
                 </div>
               </div>
 
-              {/* QR CODE AKTIF OTOMATIS */}
+              {/* KARTU PREVIEW QR DENGAN KOTAK BERDESAIN (SIAP CETAK) */}
               <div
-                className="gd-qr-canvas-container"
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  background: "linear-gradient(145deg, #fdfbf7 0%, #faf3e8 100%)",
+                  border: "2px solid #deb857",
+                  borderRadius: "18px",
                   padding: "16px",
-                  background: "#ffffff",
-                  borderRadius: "14px",
-                  border: "2px solid #ecd9b3",
-                  margin: "12px auto",
-                  width: "fit-content",
-                  boxShadow: "0 6px 18px rgba(189, 152, 65, 0.1)",
+                  margin: "12px 0 16px",
+                  textAlign: "center",
+                  boxShadow: "0 8px 24px rgba(189, 152, 65, 0.12)",
+                  position: "relative",
                 }}
               >
-                <QRCodeCanvas
-                  id="gd-guest-qr-canvas"
-                  value={guestUrl}
-                  size={155}
-                  bgColor="#ffffff"
-                  fgColor="#241e15"
-                  level="H"
-                  includeMargin={true}
-                />
+                {/* Pill Top Brand */}
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "#ffffff",
+                    border: "1px solid #d4af37",
+                    borderRadius: "20px",
+                    padding: "3px 12px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: "#946800",
+                    marginBottom: "8px",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  <Sparkles size={12} />
+                  <span>KENANGAN QR</span>
+                </div>
+
+                <h3
+                  style={{
+                    margin: "0 0 2px",
+                    fontSize: "15px",
+                    fontWeight: 700,
+                    color: "#231f1a",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {gallery.title}
+                </h3>
+                <p style={{ margin: "0 0 12px", fontSize: "11.5px", color: "#8a661c", fontWeight: 500 }}>
+                  ✦ {gallery.category} • {gallery.date} ✦
+                </p>
+
+                {/* Kotak Putih Tempat QR Code dengan Corner Accents */}
+                <div
+                  className="gd-qr-canvas-container"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "12px",
+                    background: "#ffffff",
+                    borderRadius: "14px",
+                    border: "1.5px solid #e8cb85",
+                    margin: "0 auto",
+                    width: "fit-content",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)",
+                  }}
+                >
+                  <QRCodeCanvas
+                    id="gd-guest-qr-canvas"
+                    value={guestUrl}
+                    size={155}
+                    bgColor="#ffffff"
+                    fgColor="#241e15"
+                    level="H"
+                    includeMargin={true}
+                  />
+                </div>
+
+                {/* Scan me pill */}
+                <div
+                  style={{
+                    display: "inline-block",
+                    background: "linear-gradient(135deg, #d8ab3e 0%, #b5871f 100%)",
+                    color: "#ffffff",
+                    borderRadius: "16px",
+                    padding: "4px 14px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    marginTop: "10px",
+                    boxShadow: "0 2px 8px rgba(181, 135, 31, 0.3)",
+                  }}
+                >
+                  📷 PINDAI SAYA
+                </div>
               </div>
 
               <div className="gd-link-field">
@@ -825,14 +908,27 @@ function GalleryDetail() {
                 </button>
               </div>
 
-              {/* TOMBOL UNDUH QR */}
+              {/* TOMBOL UNDUH QR DENGAN DESAIN KOTAK RESMI */}
               <button
                 type="button"
                 className="gd-button gd-button-gold gd-full-button"
-                onClick={handleDownloadQR}
+                onClick={() => handleDownloadQR("designed")}
+                title="Unduh kartu QR lengkap dengan kotak desain elegan siap cetak"
               >
                 <Download size={17} />
-                Unduh QR Code
+                Unduh Desain Kartu QR (Siap Cetak)
+              </button>
+
+              {/* TOMBOL UNDUH QR POLOS */}
+              <button
+                type="button"
+                className="gd-button gd-button-soft gd-full-button"
+                style={{ fontSize: "12px", padding: "8px 12px" }}
+                onClick={() => handleDownloadQR("plain")}
+                title="Unduh hanya gambar QR Code polos"
+              >
+                <QrCode size={14} />
+                Unduh QR Code Polos
               </button>
 
               {/* TOMBOL SALIN LINK */}
@@ -846,15 +942,15 @@ function GalleryDetail() {
               </button>
             </section>
 
-            {/* PAKET DOWNLOAD */}
+            {/* PAKET DOWNLOAD / BERLANGGANAN */}
             <section className="gd-side-card">
               <div className="gd-card-heading">
                 <span className="gd-heading-icon">
-                  <Download size={20} />
+                  <CreditCard size={20} />
                 </span>
                 <div>
-                  <h2>Download Foto</h2>
-                  <p>Pilih paket untuk mengunduh arsip foto beresolusi tinggi.</p>
+                  <h2>Paket Berlangganan</h2>
+                  <p>Tingkatkan paket untuk kapasitas tak terbatas & unduh foto HD.</p>
                 </div>
               </div>
 
@@ -898,8 +994,10 @@ function GalleryDetail() {
                 type="button"
                 className="gd-button gd-button-gold gd-full-button"
                 onClick={handleDownload}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
               >
-                Pilih Paket
+                <CreditCard size={18} />
+                <span>Bayar Sekarang (Midtrans)</span>
               </button>
             </section>
           </aside>
@@ -1051,6 +1149,20 @@ function GalleryDetail() {
           </button>
         </div>
       )}
+
+      {/* MODAL PEMBAYARAN MIDTRANS */}
+      <MidtransPaymentModal
+        isOpen={showMidtransModal}
+        onClose={() => setShowMidtransModal(false)}
+        planName={packageType === "premium" ? "Premium" : "Basic"}
+        planPrice={packageType === "premium" ? 50000 : 19000}
+        planDuration={packageType === "premium" ? "30 hari akses" : "7 hari akses"}
+        userEmail={user?.email || gallery.userEmail || "user@kenanganqr.com"}
+        userName={user?.name || "Pengguna KenanganQR"}
+        onPaymentSuccess={(info) => {
+          setNotice(`Pembayaran Midtrans berhasil (${info.orderId})! Paket ${info.planName} aktif.`);
+        }}
+      />
     </div>
   );
 }

@@ -1,0 +1,574 @@
+/* ========================================================
+   MIDTRANS PAYMENT MODAL & TABLE STYLES
+   Official Midtrans Aesthetic: Deep Navy Blue (#002B49),
+   Crisp White, Midtrans Cyan (#00a2e8), Gold Accent (#d4af37)
+======================================================== */
+
+.midtrans-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: midtransFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes midtransFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.midtrans-modal {
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 25px 60px -15px rgba(0, 43, 73, 0.35),
+              0 0 0 1px rgba(0, 43, 73, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #1e293b;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* HEADER */
+.midtrans-header {
+  background: linear-gradient(135deg, #002b49 0%, #001f35 100%);
+  color: #ffffff;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid #00a2e8;
+  position: relative;
+}
+
+.midtrans-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.midtrans-logo-pill {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.midtrans-logo-text {
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.5px;
+  color: #002b49;
+}
+
+.midtrans-logo-text span {
+  color: #00a2e8;
+}
+
+.midtrans-title-wrap h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.midtrans-title-wrap p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.midtrans-close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #ffffff;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.midtrans-close-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: rotate(90deg);
+}
+
+/* COUNTDOWN BANNER */
+.midtrans-timer-bar {
+  background: #f8fafc;
+  padding: 10px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+}
+
+.midtrans-order-id {
+  color: #64748b;
+  font-family: monospace;
+  font-size: 12px;
+  background: #e2e8f0;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+
+.midtrans-countdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: #d97706;
+}
+
+/* BODY SCROLLABLE */
+.midtrans-body {
+  padding: 22px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* ORDER SUMMARY TABLE */
+.midtrans-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #475569;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.midtrans-table-wrap {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.midtrans-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13.5px;
+}
+
+.midtrans-table th {
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 600;
+  padding: 12px 16px;
+  font-size: 12.5px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.midtrans-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
+.midtrans-table tr:last-child td {
+  border-bottom: none;
+}
+
+.midtrans-table .total-row {
+  background: #f8fafc;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.midtrans-table .total-row td {
+  font-size: 15px;
+  border-top: 2px solid #cbd5e1;
+}
+
+.midtrans-free-tag {
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+.midtrans-badge-plan {
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* PAYMENT METHODS ACCORDION / GRID */
+.midtrans-methods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.midtrans-method-card {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+}
+
+.midtrans-method-card:hover {
+  border-color: #00a2e8;
+  background: #f0f9ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 162, 232, 0.1);
+}
+
+.midtrans-method-card.active {
+  border-color: #00a2e8;
+  background: #f0f9ff;
+  box-shadow: 0 0 0 2px rgba(0, 162, 232, 0.2);
+}
+
+.midtrans-method-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.midtrans-method-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 11px;
+  color: #002b49;
+  flex-shrink: 0;
+}
+
+.midtrans-method-info h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.midtrans-method-info p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.midtrans-check-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.midtrans-method-card.active .midtrans-check-circle {
+  border-color: #00a2e8;
+  background: #00a2e8;
+  color: #ffffff;
+}
+
+/* STEP 2: ACTIVE PAYMENT DETAIL (QRIS / VA) */
+.midtrans-detail-box {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+.midtrans-va-card {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 18px;
+  margin: 16px 0;
+}
+
+.midtrans-va-label {
+  font-size: 12px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.midtrans-va-number {
+  font-family: monospace;
+  font-size: 24px;
+  font-weight: 800;
+  color: #002b49;
+  letter-spacing: 2px;
+  margin: 4px 0 12px;
+  display: block;
+}
+
+.midtrans-copy-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.midtrans-copy-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.midtrans-copy-btn.copied {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+
+/* QRIS BOX */
+.midtrans-qris-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 16px 0;
+}
+
+.midtrans-qris-card {
+  padding: 16px;
+  background: #ffffff;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.midtrans-qris-brand {
+  font-weight: 800;
+  color: #dc2626;
+  font-size: 18px;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+/* ACCORDION INSTRUCTIONS */
+.midtrans-accordion {
+  margin-top: 20px;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.midtrans-accordion-item {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.midtrans-accordion-item:last-child {
+  border-bottom: none;
+}
+
+.midtrans-accordion-header {
+  width: 100%;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  transition: background 0.2s;
+}
+
+.midtrans-accordion-header:hover {
+  background: #f8fafc;
+}
+
+.midtrans-accordion-content {
+  padding: 12px 16px;
+  background: #f8fafc;
+  font-size: 12.5px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.midtrans-accordion-content ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.midtrans-accordion-content li {
+  margin-bottom: 6px;
+}
+
+/* FOOTER ACTIONS */
+.midtrans-footer {
+  background: #f8fafc;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.midtrans-btn-pay {
+  background: linear-gradient(135deg, #00a2e8 0%, #0077b6 100%);
+  color: #ffffff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(0, 162, 232, 0.35);
+  flex: 1;
+  justify-content: center;
+}
+
+.midtrans-btn-pay:hover {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  box-shadow: 0 6px 18px rgba(0, 162, 232, 0.45);
+  transform: translateY(-1px);
+}
+
+.midtrans-btn-simulate {
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+}
+
+.midtrans-btn-simulate:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.midtrans-btn-back {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.midtrans-btn-back:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* SUCCESS STATE */
+.midtrans-success-card {
+  padding: 30px 20px;
+  text-align: center;
+}
+
+.midtrans-success-icon {
+  width: 72px;
+  height: 72px;
+  background: #dcfce7;
+  color: #15803d;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  animation: midtransBounce 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes midtransBounce {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.midtrans-success-card h2 {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 8px;
+}
+
+.midtrans-success-card p {
+  color: #64748b;
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.midtrans-security-note {
+  font-size: 11px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 14px;
+}
