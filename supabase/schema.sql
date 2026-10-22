@@ -1,11 +1,3 @@
--- ==============================================================================
--- DATABASE SCHEMA: KENANGANQR (PostgreSQL for Supabase)
--- ==============================================================================
--- Cara Menggunakan:
--- 1. Buka Supabase Dashboard (https://supabase.com/dashboard)
--- 2. Pilih Project Anda -> Buka menu "SQL Editor" di bilah kiri
--- 3. Tempel (Paste) seluruh script SQL ini -> Klik "Run"
--- ==============================================================================
 
 -- 1. EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
