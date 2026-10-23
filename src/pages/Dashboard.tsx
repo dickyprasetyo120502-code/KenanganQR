@@ -27,11 +27,9 @@ import {
   AlertCircle,
   CheckCircle2,
   Sparkles,
-  CreditCard,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { downloadDesignedQRCard } from "../utils/qrDesign";
-import MidtransPaymentModal from "../components/MidtransPaymentModal";
 
 import {
   getUser,
@@ -88,12 +86,6 @@ function Dashboard() {
   const [notice, setNotice] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
-  const [showMidtransModal, setShowMidtransModal] = useState(false);
-  const [midtransPlan, setMidtransPlan] = useState<{ name: string; price: number; duration: string }>({
-    name: "Premium",
-    price: 50000,
-    duration: "30 hari akses",
-  });
 
   // Profile modal state
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -399,25 +391,7 @@ function Dashboard() {
             <p>Kelola semua galeri kenangan Anda</p>
           </div>
 
-          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="dashboard-create-button"
-              style={{
-                background: "linear-gradient(135deg, #002b49 0%, #001f35 100%)",
-                border: "1px solid #00a2e8",
-                boxShadow: "0 4px 14px rgba(0, 43, 73, 0.2)",
-              }}
-              onClick={() => {
-                setMidtransPlan({ name: "Premium", price: 50000, duration: "30 hari akses" });
-                setShowMidtransModal(true);
-              }}
-              title="Berlangganan paket KenanganQR dengan Midtrans"
-            >
-              <CreditCard size={18} color="#00a2e8" />
-              Berlangganan Paket
-            </button>
-
+          <div>
             <button
               type="button"
               className="dashboard-create-button"
@@ -1189,19 +1163,7 @@ function Dashboard() {
         </div>
       )}
 
-      {/* MODAL PEMBAYARAN MIDTRANS */}
-      <MidtransPaymentModal
-        isOpen={showMidtransModal}
-        onClose={() => setShowMidtransModal(false)}
-        planName={midtransPlan.name}
-        planPrice={midtransPlan.price}
-        planDuration={midtransPlan.duration}
-        userEmail={user?.email || "user@kenanganqr.com"}
-        userName={user?.name || "Pengguna KenanganQR"}
-        onPaymentSuccess={(info) => {
-          setNotice(`Pembayaran Midtrans berhasil (${info.orderId})! Langganan Paket ${info.planName} aktif.`);
-        }}
-      />
+      {/* MODAL PEMBAYARAN MIDTRANS - dipindahkan ke alur pilihan paket */}
     </main>
   );
 }

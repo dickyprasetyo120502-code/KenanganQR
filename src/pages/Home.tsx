@@ -5,6 +5,7 @@ import heroImage from "../assets/hero-kenangan.jpg";
 import logoImage from "../assets/logo.jpg";
 import { getUser } from "../utils/storage";
 import MidtransPaymentModal from "../components/MidtransPaymentModal";
+import ConfirmSubscriptionModal, { type PlanDetail } from "../components/ConfirmSubscriptionModal";
 import "../styles/home.css";
 const features = [
   {
@@ -69,11 +70,13 @@ const plans = [
 
 function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmPlanId, setConfirmPlanId] = useState<"basic" | "premium">("basic");
   const [showMidtransModal, setShowMidtransModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState({
     name: "Premium",
     price: 50000,
-    duration: "30 hari",
+    duration: "30 hari akses",
   });
   const user = getUser();
 
@@ -93,12 +96,18 @@ function Home() {
       handleStartGallery();
       return;
     }
-    const priceNum = parseInt(plan.price.replace(/[^0-9]/g, ""), 10) || 50000;
+    const isPrem = plan.name === "Premium";
+    setConfirmPlanId(isPrem ? "premium" : "basic");
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmHomePlan = (plan: PlanDetail) => {
     setSelectedPlan({
       name: plan.name,
-      price: priceNum,
-      duration: plan.period,
+      price: plan.price,
+      duration: plan.duration,
     });
+    setShowConfirmModal(false);
     setShowMidtransModal(true);
   };
 
@@ -319,6 +328,14 @@ function Home() {
         <p>Setiap momen berarti, setiap cerita abadi.</p>
         <span>© 2026 KenanganQR</span>
       </footer>
+
+      {/* MODAL KONFIRMASI SEBELUM MIDTRANS */}
+      <ConfirmSubscriptionModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        selectedPlanId={confirmPlanId}
+        onConfirm={handleConfirmHomePlan}
+      />
 
       {/* MODAL PEMBAYARAN MIDTRANS */}
       <MidtransPaymentModal

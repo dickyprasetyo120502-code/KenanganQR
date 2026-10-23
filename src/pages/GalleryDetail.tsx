@@ -23,6 +23,7 @@ import {
 import { QRCodeCanvas } from "qrcode.react";
 import { downloadDesignedQRCard } from "../utils/qrDesign";
 import MidtransPaymentModal from "../components/MidtransPaymentModal";
+import ConfirmSubscriptionModal, { type PlanDetail } from "../components/ConfirmSubscriptionModal";
 
 import {
   getUser,
@@ -138,6 +139,7 @@ function GalleryDetail() {
   }, [queryId, user?.email]);
 
   const [packageType, setPackageType] = useState<"basic" | "premium">("basic");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showMidtransModal, setShowMidtransModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
@@ -370,6 +372,12 @@ function GalleryDetail() {
   };
 
   const handleDownload = () => {
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmPlan = (plan: PlanDetail) => {
+    setPackageType(plan.id);
+    setShowConfirmModal(false);
     setShowMidtransModal(true);
   };
 
@@ -962,7 +970,11 @@ function GalleryDetail() {
                       ? "gd-package selected"
                       : "gd-package"
                   }
-                  onClick={() => setPackageType("basic")}
+                  onClick={() => {
+                    setPackageType("basic");
+                    setShowConfirmModal(true);
+                  }}
+                  title="Pilih Paket Basic (Rp 19.000)"
                 >
                   <span className="gd-package-top">
                     Basic
@@ -979,7 +991,11 @@ function GalleryDetail() {
                       ? "gd-package selected"
                       : "gd-package"
                   }
-                  onClick={() => setPackageType("premium")}
+                  onClick={() => {
+                    setPackageType("premium");
+                    setShowConfirmModal(true);
+                  }}
+                  title="Pilih Paket Premium (Rp 50.000)"
                 >
                   <span className="gd-package-top">
                     Premium
@@ -997,7 +1013,7 @@ function GalleryDetail() {
                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
               >
                 <CreditCard size={18} />
-                <span>Bayar Sekarang (Midtrans)</span>
+                <span>Pilih & Lanjutkan ({packageType === "premium" ? "Rp 50.000" : "Rp 19.000"})</span>
               </button>
             </section>
           </aside>
@@ -1149,6 +1165,14 @@ function GalleryDetail() {
           </button>
         </div>
       )}
+
+      {/* MODAL KONFIRMASI PERTANYAAN YAKIN SEBELUM MIDTRANS */}
+      <ConfirmSubscriptionModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        selectedPlanId={packageType}
+        onConfirm={handleConfirmPlan}
+      />
 
       {/* MODAL PEMBAYARAN MIDTRANS */}
       <MidtransPaymentModal
