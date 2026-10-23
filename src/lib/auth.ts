@@ -555,3 +555,36 @@ export async function resetUserPassword(
     };
   }
 }
+
+/**
+ * Helper untuk mendekode Google OAuth ID Token (JWT Credential)
+ * Berguna saat menggunakan official GoogleLogin button
+ */
+export function decodeGoogleJwt(token: string): {
+  email: string;
+  name: string;
+  picture?: string;
+} | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    const data = JSON.parse(jsonPayload);
+    return {
+      email: data.email || "",
+      name: data.name || data.email?.split("@")[0] || "Pengguna Kenangan",
+      picture: data.picture,
+    };
+  } catch (err) {
+    console.error("Gagal membaca payload Google JWT:", err);
+    return null;
+  }
+}
+

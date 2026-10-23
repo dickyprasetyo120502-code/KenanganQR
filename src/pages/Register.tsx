@@ -1,16 +1,17 @@
-import { useGoogleLogin } from "@react-oauth/google";
+import { useGoogleLogin, GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import { useState } from "react";
 import { Eye, EyeOff, Images, Users, Infinity as InfinityIcon, Loader2, AlertCircle } from "lucide-react";
 
 import heroImage from "../assets/register.jpg";
 import logoImage from "../assets/logo.jpg";
-import { registerUser, loginWithGoogleOAuth } from "../lib/auth";
+import { registerUser, loginWithGoogleOAuth, decodeGoogleJwt } from "../lib/auth";
 import "../styles/auth.css";
 
 function Register() {
   const params = new URLSearchParams(window.location.search);
   const redirectUrl = params.get("redirect") || "/dashboard";
   const initialEmail = params.get("email") || "";
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -70,6 +71,44 @@ function Register() {
     window.location.href = redirectUrl;
   }
 
+  // 1. Handler untuk Google Identity Services (GoogleLogin button credential)
+  const handleGoogleCredentialSuccess = async (credentialResponse: CredentialResponse) => {
+    if (!credentialResponse.credential) {
+      setMessage("Kredensial Google tidak ditemukan.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const decoded = decodeGoogleJwt(credentialResponse.credential);
+      if (!decoded || !decoded.email) {
+        throw new Error("Gagal membaca profil dari token Google.");
+      }
+
+      const authRes = await loginWithGoogleOAuth(
+        decoded.email,
+        decoded.name,
+        decoded.picture,
+        "register"
+      );
+
+      if (authRes.success) {
+        window.location.href = redirectUrl;
+      } else {
+        setMessage(authRes.error || "Pendaftaran Google gagal.");
+      }
+    } catch (err: unknown) {
+      console.error("Google credential register error:", err);
+      const errText = err instanceof Error ? err.message : "Silakan coba lagi.";
+      setMessage(`Pendaftaran Google gagal: ${errText}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Handler untuk Custom Popup Button (useGoogleLogin)
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
@@ -120,9 +159,35 @@ function Register() {
     },
     onError: (errorResponse) => {
       console.warn("Google OAuth error on register:", errorResponse);
-      setMessage("Login Google dibatalkan atau popup ditutup.");
+      const code: string = errorResponse.error || "";
+      if (code === "popup_closed_by_user") {
+        setMessage("Pendaftaran Google dibatalkan karena jendela popup ditutup.");
+      } else if (code === "access_denied") {
+        setMessage(
+          "Akses Google ditolak (Error 403: access_denied). Akun Google Anda belum ditambahkan ke 'Test Users' di Google Cloud Console atau status OAuth Consent Screen masih 'Testing'."
+        );
+      } else if (code === "origin_mismatch" || code.includes("origin")) {
+        setMessage(
+          `Error 400 (origin_mismatch): Asal '${window.location.origin}' belum terdaftar di 'Authorized JavaScript origins' pada Google Cloud Console.`
+        );
+      } else {
+        setMessage(
+          `Pendaftaran Google gagal: ${errorResponse.error_description || code || "Pastikan Authorized JavaScript Origins di Google Cloud Console telah mengizinkan " + window.location.origin}`
+        );
+      }
+    },
+    onNonOAuthError: (nonOAuthError) => {
+      console.warn("Google non-OAuth error on register:", nonOAuthError);
+      if (nonOAuthError.type === "popup_failed_to_open") {
+        setMessage(
+          "Jendela popup Google diblokir oleh browser. Harap izinkan pop-up (pop-up blocker) di browser Anda atau gunakan tombol Google resmi di bawah."
+        );
+      } else {
+        setMessage("Jendela pendaftaran Google ditutup sebelum selesai.");
+      }
     },
   });
+
 
 
   return (
@@ -348,6 +413,46 @@ function Register() {
               {!loading && <span>→</span>}
             </button>
           </form>
+
+          <div className="login-divider" style={{ margin: "22px 0 16px" }}>
+            <span />
+            <p>atau daftar dengan</p>
+            <span />
+          </div>
+
+          <div className="google-login-group" style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", marginBottom: "16px" }}>
+            <button
+              type="button"
+              className="login-google-button"
+              onClick={() => {
+                if (!googleClientId) {
+                  setMessage("Client ID Google belum disetel di file .env (VITE_GOOGLE_CLIENT_ID).");
+                  return;
+                }
+                googleLogin();
+              }}
+              disabled={loading}
+            >
+              <span className="login-google-letter">G</span>
+              Daftar dengan Google
+            </button>
+
+            {googleClientId && (
+              <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                <GoogleLogin
+                  onSuccess={handleGoogleCredentialSuccess}
+                  onError={() => {
+                    setMessage("Autentikasi Google gagal. Pastikan Authorized JavaScript Origins di Google Cloud Console telah mengizinkan " + window.location.origin);
+                  }}
+                  theme="outline"
+                  size="large"
+                  text="signup_with"
+                  shape="rectangular"
+                  width="100%"
+                />
+              </div>
+            )}
+          </div>
 
           <div className="auth-bottom">
             Sudah punya akun?{" "}

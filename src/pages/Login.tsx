@@ -1,16 +1,17 @@
-import { useGoogleLogin } from "@react-oauth/google";
+import { useGoogleLogin, GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import { useState } from "react";
 import { Mail, Lock, Eye, EyeOff, AlertCircle, UserPlus, Loader2 } from "lucide-react";
 
 import heroImage from "../assets/login.jpg";
 import logoImage from "../assets/logo.jpg";
-import { loginUser, loginWithGoogleOAuth } from "../lib/auth";
+import { loginUser, loginWithGoogleOAuth, decodeGoogleJwt } from "../lib/auth";
 import "../styles/auth.css";
 
 function Login() {
   const params = new URLSearchParams(window.location.search);
   const redirectUrl = params.get("redirect") || "/dashboard";
   const initialEmail = params.get("email") || "";
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState(initialEmail);
@@ -19,6 +20,45 @@ function Login() {
   const [isNotRegistered, setIsNotRegistered] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // 1. Handler untuk Google Identity Services (GoogleLogin button credential)
+  const handleGoogleCredentialSuccess = async (credentialResponse: CredentialResponse) => {
+    if (!credentialResponse.credential) {
+      setMessage("Kredensial login Google tidak ditemukan.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+      setIsNotRegistered(false);
+
+      const decoded = decodeGoogleJwt(credentialResponse.credential);
+      if (!decoded || !decoded.email) {
+        throw new Error("Gagal membaca profil dari token Google.");
+      }
+
+      const authRes = await loginWithGoogleOAuth(
+        decoded.email,
+        decoded.name,
+        decoded.picture,
+        "login"
+      );
+
+      if (authRes.success) {
+        window.location.href = redirectUrl;
+      } else {
+        setMessage(authRes.error || "Gagal masuk menggunakan Google.");
+      }
+    } catch (err: unknown) {
+      console.error("Google credential login error:", err);
+      const errText = err instanceof Error ? err.message : "Silakan coba lagi.";
+      setMessage(`Login Google gagal: ${errText}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Handler untuk Custom Popup Button (useGoogleLogin)
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
@@ -36,7 +76,7 @@ function Login() {
         );
 
         if (!response.ok) {
-          throw new Error("Gagal mengambil akun Google.");
+          throw new Error("Gagal mengambil profil akun Google.");
         }
 
         const data = await response.json();
@@ -71,9 +111,35 @@ function Login() {
     },
     onError: (errorResponse) => {
       console.warn("Google OAuth error:", errorResponse);
-      setMessage("Login Google dibatalkan atau popup ditutup. Pastikan Authorized JavaScript Origins di Google Cloud Console telah mengizinkan http://localhost:5173.");
+      const code: string = errorResponse.error || "";
+      if (code === "popup_closed_by_user") {
+        setMessage("Login Google dibatalkan karena jendela popup ditutup.");
+      } else if (code === "access_denied") {
+        setMessage(
+          "Akses Google ditolak (Error 403: access_denied). Akun Google Anda belum ditambahkan ke 'Test Users' di Google Cloud Console, atau status OAuth Consent Screen masih dalam pengujian (Testing)."
+        );
+      } else if (code === "origin_mismatch" || code.includes("origin")) {
+        setMessage(
+          `Error 400 (origin_mismatch): Asal '${window.location.origin}' belum terdaftar di 'Authorized JavaScript origins' pada Google Cloud Console.`
+        );
+      } else {
+        setMessage(
+          `Login Google gagal: ${errorResponse.error_description || code || "Pastikan Authorized JavaScript Origins di Google Cloud Console telah mengizinkan " + window.location.origin}`
+        );
+      }
+    },
+    onNonOAuthError: (nonOAuthError) => {
+      console.warn("Google non-OAuth error:", nonOAuthError);
+      if (nonOAuthError.type === "popup_failed_to_open") {
+        setMessage(
+          "Jendela popup Google diblokir oleh browser. Harap izinkan pop-up (pop-up blocker) di browser Anda atau gunakan tombol Google resmi di bawah."
+        );
+      } else {
+        setMessage("Jendela login Google ditutup sebelum autentikasi selesai.");
+      }
     },
   });
+
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -257,15 +323,40 @@ function Login() {
               <span />
             </div>
 
-            
-        <button
-          type="button"
-          className="login-google-button"
-          onClick={() => googleLogin()}
-        >
-          <span className="login-google-letter">G</span>
-          Masuk dengan Google
-        </button>
+            <div className="google-login-group" style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
+              <button
+                type="button"
+                className="login-google-button"
+                onClick={() => {
+                  if (!googleClientId) {
+                    setMessage("Client ID Google belum disetel di file .env (VITE_GOOGLE_CLIENT_ID).");
+                    return;
+                  }
+                  googleLogin();
+                }}
+                disabled={loading}
+              >
+                <span className="login-google-letter">G</span>
+                Masuk dengan Google
+              </button>
+
+              {googleClientId && (
+                <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                  <GoogleLogin
+                    onSuccess={handleGoogleCredentialSuccess}
+                    onError={() => {
+                      setMessage("Autentikasi Google gagal. Pastikan Authorized JavaScript Origins di Google Cloud Console telah mengizinkan " + window.location.origin);
+                    }}
+                    theme="outline"
+                    size="large"
+                    text="signin_with"
+                    shape="rectangular"
+                    width="100%"
+                  />
+                </div>
+              )}
+            </div>
+
 
         <p className="login-register-text">
           Belum punya akun?{" "}
