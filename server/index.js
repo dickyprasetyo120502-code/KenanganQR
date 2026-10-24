@@ -7,6 +7,11 @@ import jwt from "jsonwebtoken";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./prisma.js";
 import crypto from "node:crypto";
+import {
+  startCronScheduler,
+  checkUserSubscription,
+  checkAndProcessGalleries,
+} from "./cronService.js";
 
 // Muat environment variables dari .env
 dotenv.config();
@@ -14,9 +19,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Konfigurasi Midtrans Snap Sandbox
+// Konfigurasi Midtrans Snap Sandbox / Production
+const isMidtransProduction = process.env.MIDTRANS_IS_PRODUCTION === "true";
 const snap = new midtransClient.Snap({
-  isProduction: false,
+  isProduction: isMidtransProduction,
   serverKey: process.env.MIDTRANS_SERVER_KEY,
   clientKey: process.env.VITE_MIDTRANS_CLIENT_KEY,
 });
@@ -47,9 +53,18 @@ app.use((req, res, next) => {
 });
 
 // Helper: Memformat objek Galeri agar konsisten untuk Frontend React
-function formatGalleryResponse(g) {
+function formatGalleryResponse(g, subscriptionInfo = null) {
   const photos = g.photos || g.gallery_photos || [];
   const messages = g.messages || g.gallery_messages || [];
+
+  const createdTime = g.createdAt || g.created_at ? new Date(g.createdAt || g.created_at).getTime() : Date.now();
+  const diffDays = Math.floor((Date.now() - createdTime) / (1000 * 60 * 60 * 24));
+  const daysActive = Math.max(0, diffDays);
+  const daysRemaining = Math.max(0, 7 - daysActive);
+
+  const isSubscribed = Boolean(subscriptionInfo?.isSubscribed);
+  const isTrialExpired = !isSubscribed && daysActive >= 7;
+  const photosPurged = Boolean(g.photosPurgedAt || g.photos_purged_at);
 
   return {
     id: Number(g.id),
@@ -63,6 +78,18 @@ function formatGalleryResponse(g) {
     photos: photos.length,
     messages: messages.length,
     guests: 0,
+    createdAt: g.createdAt || g.created_at || new Date().toISOString(),
+    userEmail: g.userEmail || g.user_email || "",
+    daysActive,
+    daysRemaining,
+    isSubscribed,
+    // Peraturan: Kalo belum berlangganan, tidak boleh download gambar / kartu QR
+    canDownload: isSubscribed,
+    isTrialExpired,
+    photosPurged,
+    subscriptionPlan: isSubscribed
+      ? subscriptionInfo?.planName || "Paket Berlangganan"
+      : "Gratis (Uji Coba 7 Hari)",
     photosList: photos.map((p) => ({
       id: Number(p.id),
       name: p.name || "Foto Kenangan",
@@ -133,35 +160,55 @@ function createAccessToken(user) {
     secret,
     {
       subject: String(user.id),
-      expiresIn: "1h",
+      expiresIn: "30d",
     }
   );
 }
-// Memverifikasi token JWT dari request
-function authenticateToken(req, res, next) {
+// Memverifikasi token JWT dari request dengan fallback email pengguna
+async function authenticateToken(req, res, next) {
   const authorization = req.headers.authorization;
 
-  if (!authorization || !authorization.startsWith("Bearer ")) {
-    return res.status(401).json({
-      error: "Silakan login terlebih dahulu.",
-    });
+  if (authorization && authorization.startsWith("Bearer ")) {
+    const token = authorization.slice(7);
+    try {
+      const payload = jwt.verify(token, process.env.JWT_SECRET);
+      req.auth = {
+        userId: payload.sub,
+        email: payload.email,
+      };
+      return next();
+    } catch {
+      // Token kedaluwarsa / invalid, lanjutkan ke fallback
+    }
   }
 
-  const token = authorization.slice(7);
+  // Fallback: Jika token belum tersimpan di browser namun identitas email dikirim
+  const fallbackEmail = (
+    req.body?.userEmail ||
+    req.headers["x-user-email"] ||
+    ""
+  ).trim().toLowerCase();
 
-  try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.auth = {
-      userId: payload.sub,
-      email: payload.email,
-    };
-
-    next();
-  } catch {
-    return res.status(401).json({
-      error: "Sesi login tidak valid atau sudah kedaluwarsa. Silakan login kembali.",
-    });
+  if (fallbackEmail && prisma) {
+    try {
+      const fallbackUser = await prisma.user.findFirst({
+        where: { email: { equals: fallbackEmail, mode: "insensitive" } },
+      });
+      if (fallbackUser) {
+        req.auth = {
+          userId: fallbackUser.id,
+          email: fallbackUser.email,
+        };
+        return next();
+      }
+    } catch (e) {
+      console.warn("Fallback auth error:", e.message);
+    }
   }
+
+  return res.status(401).json({
+    error: "Sesi login tidak ditemukan atau kedaluwarsa. Silakan login kembali.",
+  });
 }
 
 // POST /api/auth/register - Pendaftaran akun baru
@@ -214,8 +261,10 @@ app.post("/api/auth/register", async (req, res) => {
           },
         });
 
+        const accessToken = createAccessToken(newUser);
         return res.status(201).json({
           message: "Pendaftaran berhasil! Akun Anda telah dibuat.",
+          accessToken,
           user: formatUserResponse(newUser),
         });
       } catch (prismaErr) {
@@ -379,8 +428,10 @@ app.post("/api/auth/google", async (req, res) => {
               data: { avatarUrl: avatar },
             });
           }
+          const accessToken = createAccessToken(user);
           return res.json({
             message: "Login Google berhasil!",
+            accessToken,
             user: formatUserResponse(user),
           });
         }
@@ -394,8 +445,10 @@ app.post("/api/auth/google", async (req, res) => {
           },
         });
 
+        const accessToken = createAccessToken(newUser);
         return res.status(200).json({
           message: "Login Google berhasil! Akun Anda telah siap.",
+          accessToken,
           user: formatUserResponse(newUser),
         });
       } catch (prismaErr) {
@@ -613,6 +666,12 @@ app.get("/api/galleries", async (req, res) => {
   }
 
   try {
+    const userEmail = (req.query.email || "").trim().toLowerCase();
+    let subInfo = null;
+    if (userEmail) {
+      subInfo = await checkUserSubscription(userEmail);
+    }
+
     if (prisma) {
       try {
         const galleries = await prisma.gallery.findMany({
@@ -622,7 +681,16 @@ app.get("/api/galleries", async (req, res) => {
           },
           orderBy: { createdAt: "desc" },
         });
-        return res.json(galleries.map(formatGalleryResponse));
+        return res.json(
+          await Promise.all(
+            galleries.map(async (gal) => {
+              const gallerySub = gal.userEmail
+                ? await checkUserSubscription(gal.userEmail)
+                : subInfo;
+              return formatGalleryResponse(gal, gallerySub);
+            })
+          )
+        );
       } catch (prismaErr) {
         console.warn("Prisma error on GET /api/galleries, falling back to Supabase client:", prismaErr.message);
       }
@@ -643,7 +711,7 @@ app.get("/api/galleries", async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    res.json((data || []).map(formatGalleryResponse));
+    res.json((data || []).map((gal) => formatGalleryResponse(gal, subInfo)));
   } catch (err) {
     console.error("Server error on GET /api/galleries:", err);
     res.status(500).json({ error: err.message });
@@ -670,7 +738,8 @@ app.get("/api/galleries/:id", async (req, res) => {
         });
 
         if (gallery) {
-          return res.json(formatGalleryResponse(gallery));
+          const subInfo = await checkUserSubscription(gallery.userEmail);
+          return res.json(formatGalleryResponse(gallery, subInfo));
         }
       } catch (prismaErr) {
         console.warn(`Prisma error on GET /api/galleries/${rawId}, falling back to Supabase:`, prismaErr.message);
@@ -692,7 +761,8 @@ app.get("/api/galleries/:id", async (req, res) => {
       return res.status(404).json({ error: "Galeri tidak ditemukan" });
     }
 
-    res.json(formatGalleryResponse(gallery));
+    const subInfo = await checkUserSubscription(gallery.user_email);
+    res.json(formatGalleryResponse(gallery, subInfo));
   } catch (err) {
     console.error("Server error on GET /api/galleries/:id:", err);
     res.status(500).json({ error: err.message });
@@ -1255,12 +1325,26 @@ app.post(
         });
       }
 
-      // Ambil identitas dari JWT, lalu cocokkan dengan database.
-      const user = await prisma.user.findUnique({
-        where: {
-          id: req.auth.userId,
-        },
-      });
+      // Ambil identitas dari auth atau email, lalu cocokkan dengan database.
+      let user = null;
+      if (req.auth.userId) {
+        user = await prisma.user.findUnique({
+          where: {
+            id: req.auth.userId,
+          },
+        });
+      }
+
+      if (!user && req.auth.email) {
+        user = await prisma.user.findFirst({
+          where: {
+            email: {
+              equals: req.auth.email,
+              mode: "insensitive",
+            },
+          },
+        });
+      }
 
       if (!user) {
         return res.status(401).json({
@@ -1477,7 +1561,128 @@ app.post("/api/payments/notification", async (req, res) => {
   }
 });
 
+/* ==========================================
+   MIDTRANS PAYMENT - SYNC TRANSACTION STATUS
+========================================== */
+app.post("/api/payments/sync/:orderId", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId) {
+      return res.status(400).json({ error: "Order ID wajib diisi." });
+    }
 
+    if (!prisma) {
+      return res.status(503).json({ error: "Database belum siap." });
+    }
+
+    const payment = await prisma.payment.findUnique({
+      where: { orderId },
+    });
+
+    if (!payment) {
+      return res.status(404).json({ error: "Transaksi tidak ditemukan." });
+    }
+
+    // Periksa status langsung ke Midtrans API
+    let statusResponse = null;
+    try {
+      statusResponse = await snap.transaction.status(orderId);
+    } catch (midErr) {
+      console.warn("Gagal cek status ke Midtrans API:", midErr.message);
+      return res.json({
+        status: payment.status,
+        orderId: payment.orderId,
+        payment,
+      });
+    }
+
+    const {
+      transaction_status: transactionStatus,
+      fraud_status: fraudStatus,
+      transaction_id: transactionId,
+      payment_type: paymentType,
+    } = statusResponse;
+
+    let newStatus = payment.status;
+
+    if (
+      transactionStatus === "settlement" ||
+      (transactionStatus === "capture" && (fraudStatus === "accept" || !fraudStatus))
+    ) {
+      newStatus = "PAID";
+    } else if (transactionStatus === "pending") {
+      newStatus = "PENDING";
+    } else if (transactionStatus === "expire") {
+      newStatus = "EXPIRED";
+    } else if (transactionStatus === "cancel") {
+      newStatus = "CANCELLED";
+    } else if (transactionStatus === "deny") {
+      newStatus = "FAILED";
+    }
+
+    if (newStatus !== payment.status) {
+      await prisma.payment.update({
+        where: { orderId },
+        data: {
+          status: newStatus,
+          midtransTransactionId: transactionId || payment.midtransTransactionId,
+          paymentType: paymentType || payment.paymentType,
+          ...(newStatus === "PAID" && !payment.paidAt ? { paidAt: new Date() } : {}),
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      status: newStatus,
+      orderId,
+      paymentType,
+    });
+  } catch (err) {
+    console.error("Gagal sync status pembayaran:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/subscription/status - Cek status langganan akun
+app.get("/api/subscription/status", async (req, res) => {
+  try {
+    const email = (
+      req.query.email ||
+      req.headers["x-user-email"] ||
+      ""
+    ).trim().toLowerCase();
+
+    if (!email) {
+      return res.json({
+        isSubscribed: false,
+        plan: "free",
+        canDownload: false,
+      });
+    }
+
+    const sub = await checkUserSubscription(email);
+    return res.json({
+      ...sub,
+      canDownload: sub.isSubscribed,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/cron/check-subscriptions - Manual trigger scheduler peringatan 5 hari & purge 7 hari
+app.post("/api/cron/check-subscriptions", async (req, res) => {
+  try {
+    const result = await checkAndProcessGalleries();
+    return res.json({
+      message: "Pengecekan masa gratis 7 hari dan peringatan hari ke-5 berhasil dijalankan.",
+      result,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 export default app;
 
@@ -1498,4 +1703,7 @@ if (!process.env.VERCEL) {
     );
     console.log("==================================================");
   });
+
+  // Aktifkan scheduler background otomatis untuk pengecekan masa aktif galeri
+  startCronScheduler();
 }

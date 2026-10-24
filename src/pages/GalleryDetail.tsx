@@ -19,6 +19,9 @@ import {
   X,
   Sparkles,
   CreditCard,
+  Lock,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { downloadDesignedQRCard } from "../utils/qrDesign";
@@ -35,6 +38,9 @@ import {
   getGalleries,
   getGalleryById,
   updateGallery,
+  getUserSubscription,
+  saveUserSubscription,
+  fetchSubscriptionStatus,
   type UserProfile,
   type Gallery,
   type GalleryPhoto,
@@ -125,7 +131,17 @@ function GalleryDetail() {
       return;
     }
 
-    // 2. Ambil data terbaru dari Supabase jika ada queryId
+    // 2. Cek status langganan pengguna
+    if (user.email) {
+      fetchSubscriptionStatus(user.email).then((sub) => {
+        if (sub.isSubscribed) {
+          setIsSubscribed(true);
+          setSubscriptionPlan(sub.planName || "Paket Berlangganan");
+        }
+      });
+    }
+
+    // 3. Ambil data terbaru dari Supabase/Backend jika ada queryId
     if (queryId) {
       fetchGalleryFromSupabase(queryId).then((remote) => {
         if (remote) {
@@ -146,6 +162,21 @@ function GalleryDetail() {
           setMessages(remote.messagesList || []);
           setAllowGuestUploads(remote.allowGuestUploads ?? true);
           setAllowGuestMessages(remote.allowGuestMessages ?? true);
+          if (remote.isSubscribed !== undefined) {
+            setIsSubscribed(Boolean(remote.isSubscribed));
+          }
+          if (remote.daysActive !== undefined) {
+            setDaysActive(remote.daysActive);
+          }
+          if (remote.daysRemaining !== undefined) {
+            setDaysRemaining(remote.daysRemaining);
+          }
+          if (remote.photosPurged !== undefined) {
+            setPhotosPurged(Boolean(remote.photosPurged));
+          }
+          if (remote.subscriptionPlan) {
+            setSubscriptionPlan(remote.subscriptionPlan);
+          }
         }
       });
     }
@@ -159,6 +190,18 @@ function GalleryDetail() {
   const [notice, setNotice] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  // Status langganan & masa uji coba gratis 7 hari
+  const [isSubscribed, setIsSubscribed] = useState<boolean>(() => {
+    const cached = getUserSubscription(user?.email);
+    return cached.isSubscribed || Boolean(gallery.isSubscribed);
+  });
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string>(
+    gallery.subscriptionPlan || "Gratis (Uji Coba 7 Hari)"
+  );
+  const [daysActive, setDaysActive] = useState<number>(gallery.daysActive ?? 0);
+  const [daysRemaining, setDaysRemaining] = useState<number>(gallery.daysRemaining ?? 7);
+  const [photosPurged, setPhotosPurged] = useState<boolean>(Boolean(gallery.photosPurged));
 
   // Profile dropdown and settings modal
   const [profileOpen, setProfileOpen] = useState(false);
@@ -377,6 +420,15 @@ function GalleryDetail() {
   };
 
   const handleDownloadQR = (mode: "designed" | "plain" = "designed") => {
+    // Peraturan: Kalo belum berlangganan jangan boleh download gambar
+    if (!isSubscribed) {
+      setShowConfirmModal(true);
+      setNotice(
+        "🔒 Fitur unduh kartu QR & foto hanya tersedia untuk album yang sudah berlangganan paket Basic (Rp 19.000) atau Premium (Rp 50.000). Silakan aktifkan langganan Anda!",
+      );
+      return;
+    }
+
     const canvas = document.querySelector(
       "#gd-guest-qr-canvas",
     ) as HTMLCanvasElement;
@@ -533,6 +585,62 @@ function GalleryDetail() {
           <ArrowLeft size={17} />
           Kembali ke Dashboard Galeri Saya
         </a>
+
+        {/* BANNER STATUS MASA GRATIS 7 HARI & KELANGGANAN */}
+        {photosPurged ? (
+          <div className="gd-trial-alert gd-trial-danger">
+            <div className="gd-trial-content">
+              <AlertTriangle size={22} className="gd-trial-icon" />
+              <div>
+                <strong>🚨 Masa Uji Coba Gratis 7 Hari Telah Berakhir</strong>
+                <p>
+                  Seluruh foto kenangan di album ini telah dibersihkan secara otomatis karena tidak diperpanjang setelah 7 hari. Aktifkan paket berlangganan sekarang untuk membuka kapasitas penuh tak terbatas.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="gd-trial-btn"
+              onClick={() => setShowConfirmModal(true)}
+            >
+              Berlangganan Sekarang
+            </button>
+          </div>
+        ) : !isSubscribed ? (
+          <div className="gd-trial-alert gd-trial-warning">
+            <div className="gd-trial-content">
+              <Clock size={22} className="gd-trial-icon" />
+              <div>
+                <strong>
+                  ⏳ Album Mode Gratis (Hari ke-{daysActive || 1} dari 7 Hari) — Tersisa {daysRemaining} Hari
+                </strong>
+                <p>
+                  Masa gratis album Anda tersisa <strong>{daysRemaining} hari</strong> (Peringatan dikirim ke Gmail di hari ke-5). <strong>Setelah 7 hari, foto-foto akan terhapus otomatis jika belum berlangganan.</strong> Fitur unduh foto dan kartu QR juga terkunci untuk mode gratis.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="gd-trial-btn"
+              onClick={() => setShowConfirmModal(true)}
+            >
+              <Sparkles size={15} />
+              <span>Berlangganan & Buka Unduhan</span>
+            </button>
+          </div>
+        ) : (
+          <div className="gd-trial-alert gd-trial-success">
+            <div className="gd-trial-content">
+              <Check size={22} className="gd-trial-icon" />
+              <div>
+                <strong>✓ {subscriptionPlan} Aktif</strong>
+                <p>
+                  Foto kenangan Anda tersimpan aman tanpa batas waktu dan seluruh fitur unduh foto HD serta kartu QR telah aktif sepenuhnya.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="gd-layout">
           <section className="gd-primary">
@@ -1046,12 +1154,20 @@ function GalleryDetail() {
               {/* TOMBOL UNDUH QR DENGAN DESAIN KOTAK RESMI */}
               <button
                 type="button"
-                className="gd-button gd-button-gold gd-full-button"
+                className={`gd-button ${isSubscribed ? "gd-button-gold" : "gd-button-soft"} gd-full-button`}
                 onClick={() => handleDownloadQR("designed")}
-                title="Unduh kartu QR lengkap dengan kotak desain elegan siap cetak"
+                title={
+                  isSubscribed
+                    ? "Unduh kartu QR lengkap dengan kotak desain elegan siap cetak"
+                    : "Terkunci: Berlangganan untuk mengunduh desain kartu QR"
+                }
               >
-                <Download size={17} />
-                Unduh Desain Kartu QR (Siap Cetak)
+                {isSubscribed ? <Download size={17} /> : <Lock size={16} />}
+                <span>
+                  {isSubscribed
+                    ? "Unduh Desain Kartu QR (Siap Cetak)"
+                    : "Unduh Desain QR (Khusus Pelanggan)"}
+                </span>
               </button>
 
               {/* TOMBOL UNDUH QR POLOS */}
@@ -1060,10 +1176,16 @@ function GalleryDetail() {
                 className="gd-button gd-button-soft gd-full-button"
                 style={{ fontSize: "12px", padding: "8px 12px" }}
                 onClick={() => handleDownloadQR("plain")}
-                title="Unduh hanya gambar QR Code polos"
+                title={
+                  isSubscribed
+                    ? "Unduh hanya gambar QR Code polos"
+                    : "Terkunci: Berlangganan untuk mengunduh QR Code"
+                }
               >
-                <QrCode size={14} />
-                Unduh QR Code Polos
+                {isSubscribed ? <QrCode size={14} /> : <Lock size={13} />}
+                <span>
+                  {isSubscribed ? "Unduh QR Code Polos" : "Unduh QR Polos (Terkunci)"}
+                </span>
               </button>
 
               {/* TOMBOL SALIN LINK */}
@@ -1327,8 +1449,21 @@ function GalleryDetail() {
         userEmail={user?.email || gallery.userEmail || "user@kenanganqr.com"}
         userName={user?.name || "Pengguna KenanganQR"}
         onPaymentSuccess={(info) => {
+          setIsSubscribed(true);
+          const isPrem = info.planName.toLowerCase().includes("premium");
+          const planTitle = `Paket ${info.planName}`;
+          setSubscriptionPlan(planTitle);
+
+          if (user?.email) {
+            saveUserSubscription(user.email, {
+              planId: isPrem ? "premium" : "basic",
+              planName: planTitle,
+              durationDays: isPrem ? 30 : 7,
+            });
+          }
+
           setNotice(
-            `Pembayaran Midtrans berhasil (${info.orderId})! Paket ${info.planName} aktif.`,
+            `Pembayaran Midtrans berhasil (${info.orderId})! ${planTitle} telah aktif. Foto kenangan Anda aman dan fitur unduh telah terbuka!`,
           );
         }}
       />

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   ShieldCheck,
@@ -6,9 +6,11 @@ import {
   LoaderCircle,
   AlertCircle,
   CheckCircle2,
+  ExternalLink,
 } from "lucide-react";
 
-import { getAccessToken } from "../utils/storage";
+import { getAccessToken, getUser } from "../utils/storage";
+import { loadMidtransSnap } from "../utils/midtrans";
 import "../styles/midtrans.css";
 
 interface CreatePaymentResponse {
@@ -47,11 +49,21 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
   planName,
   planPrice,
   planDuration = "7 hari akses",
+  userEmail: propUserEmail,
+  onPaymentSuccess,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
   const [orderId, setOrderId] = useState("");
+  const [redirectUrl, setRedirectUrl] = useState("");
+
+  // Muat script Snap.js lebih awal begitu modal dibuka
+  useEffect(() => {
+    if (isOpen) {
+      loadMidtransSnap();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -66,37 +78,40 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
     setErrorMessage("");
     setPaymentMessage("");
     setOrderId("");
+    setRedirectUrl("");
 
+    const currentUser = getUser();
     const accessToken = getAccessToken();
+    const activeEmail = (propUserEmail || currentUser?.email || "").trim().toLowerCase();
 
-    if (!accessToken) {
+    if (!currentUser && !accessToken) {
       setErrorMessage(
-        "Sesi login tidak ditemukan. Silakan login kembali sebelum membayar.",
+        "Sesi login tidak ditemukan. Silakan login ke akun Anda terlebih dahulu sebelum membayar.",
       );
       return;
     }
-
-    if (!window.snap) {
-      setErrorMessage(
-        "Halaman pembayaran Midtrans belum siap. Periksa koneksi internet, konfigurasi Snap.js, lalu muat ulang halaman.",
-      );
-      return;
-    }
-
-    const planId = planName.toLowerCase().includes("premium")
-      ? "premium"
-      : "basic";
 
     setIsLoading(true);
 
     try {
+      // Pastikan Snap SDK siap digunakan
+      const isSnapLoaded = window.snap ? true : await loadMidtransSnap();
+
+      const planId = planName.toLowerCase().includes("premium")
+        ? "premium"
+        : "basic";
+
       const response = await fetch("/api/payments/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          ...(activeEmail ? { "x-user-email": activeEmail } : {}),
         },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({
+          planId,
+          userEmail: activeEmail,
+        }),
       });
 
       const data = (await response.json()) as
@@ -119,38 +134,79 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
       }
 
       setOrderId(transaction.orderId);
+      if (transaction.redirectUrl) {
+        setRedirectUrl(transaction.redirectUrl);
+      }
 
-      // Buka popup pembayaran resmi Midtrans Snap.
-      window.snap.pay(transaction.token, {
-        onSuccess: () => {
-          setPaymentMessage(
-            "Midtrans melaporkan bahwa proses pembayaran berhasil. Status langganan tetap menunggu verifikasi backend.",
-          );
-        },
+      // 1. Jika Snap.js siap, buka popup interaktif resmi Midtrans Snap
+      if (window.snap && isSnapLoaded) {
+        window.snap.pay(transaction.token, {
+          onSuccess: async (result) => {
+            console.log("[Midtrans Snap] Sukses:", result);
+            setPaymentMessage(
+              "Pembayaran berhasil terkonfirmasi! Paket langganan Anda telah aktif.",
+            );
 
-        onPending: () => {
-          setPaymentMessage(
-            "Transaksi dibuat, tetapi pembayaran masih menunggu penyelesaian. Selesaikan instruksi pembayaran dari Midtrans.",
-          );
-        },
+            // Sinkronisasi status transaksi ke database backend
+            try {
+              await fetch(`/api/payments/sync/${transaction.orderId}`, {
+                method: "POST",
+              });
+            } catch (syncErr) {
+              console.warn("Gagal sync status pembayaran:", syncErr);
+            }
 
-        onError: () => {
-          setErrorMessage(
-            "Midtrans melaporkan kendala pada pembayaran. Periksa status transaksi sebelum mencoba membayar kembali.",
-          );
-        },
+            if (onPaymentSuccess) {
+              onPaymentSuccess({
+                orderId: transaction.orderId,
+                planName: transaction.planName,
+                amount: transaction.amount,
+              });
+            }
 
-        onClose: () => {
-          setPaymentMessage(
-            "Popup pembayaran ditutup. Status transaksi belum dipastikan; jangan membuat pembayaran baru sebelum memeriksa transaksi ini.",
-          );
-        },
-      });
+            setTimeout(() => {
+              onClose();
+            }, 1800);
+          },
+
+          onPending: async (result) => {
+            console.log("[Midtrans Snap] Pending:", result);
+            setPaymentMessage(
+              "Transaksi dibuat! Silakan selesaikan pembayaran sesuai panduan yang tertera di layar.",
+            );
+            try {
+              await fetch(`/api/payments/sync/${transaction.orderId}`, {
+                method: "POST",
+              });
+            } catch {}
+          },
+
+          onError: (result) => {
+            console.error("[Midtrans Snap] Error:", result);
+            setErrorMessage(
+              "Pembayaran ditolak atau terjadi kendala. Silakan coba bayar kembali.",
+            );
+          },
+
+          onClose: () => {
+            setPaymentMessage(
+              "Jendela pembayaran ditutup sebelum transaksi diselesaikan. Anda dapat melanjutkannya kapan saja.",
+            );
+          },
+        });
+      } else if (transaction.redirectUrl) {
+        // 2. Fallback: Langsung arahkan ke halaman Midtrans jika popup diblokir / Snap.js gagal
+        window.location.href = transaction.redirectUrl;
+      } else {
+        throw new Error(
+          "Gerbang pembayaran Midtrans belum dapat dimuat. Silakan periksa koneksi internet atau muat ulang halaman.",
+        );
+      }
     } catch (error) {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Terjadi kesalahan saat membuat transaksi.",
+          : "Terjadi kesalahan saat memulai pembayaran Midtrans.",
       );
     } finally {
       setIsLoading(false);
@@ -181,7 +237,7 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
                 Pembayaran KenanganQR
                 <ShieldCheck size={16} color="#00a2e8" />
               </h3>
-              <p>Pembayaran melalui Midtrans Snap Sandbox</p>
+              <p>Pembayaran resmi aman via Midtrans Payment Gateway</p>
             </div>
           </div>
 
@@ -222,7 +278,7 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
                         marginTop: "4px",
                       }}
                     >
-                      Akses fitur sesuai paket yang dipilih.
+                      Akses fitur lengkap sesuai paket yang dipilih.
                     </div>
                   </td>
 
@@ -281,7 +337,7 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
               />
 
               <div>
-                <strong>Pembayaran aman melalui Midtrans</strong>
+                <strong>Pembayaran aman & instan melalui Midtrans</strong>
 
                 <p
                   style={{
@@ -290,10 +346,7 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
                     lineHeight: 1.6,
                   }}
                 >
-                  Pilih metode pembayaran yang tersedia pada halaman
-                  Midtrans. Nomor Virtual Account dan kode pembayaran
-                  akan diberikan oleh Midtrans, bukan dibuat oleh
-                  KenanganQR.
+                  Klik tombol <strong>Lanjutkan Pembayaran</strong> di bawah untuk langsung membuka formulir pembayaran Midtrans (QRIS GoPay/ShopeePay/OVO, BCA/BRI/Mandiri/BNI Virtual Account, & Kartu Debit/Kredit).
                 </p>
               </div>
             </div>
@@ -320,6 +373,26 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
                 }}
               />
               {errorMessage}
+
+              {errorMessage.includes("login") && (
+                <div style={{ marginTop: "10px" }}>
+                  <a
+                    href="/login?redirect=/dashboard"
+                    style={{
+                      display: "inline-block",
+                      padding: "6px 14px",
+                      background: "#b91c1c",
+                      color: "#fff",
+                      borderRadius: "6px",
+                      textDecoration: "none",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Masuk / Login Sekarang
+                  </a>
+                </div>
+              )}
             </div>
           )}
 
@@ -352,6 +425,31 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
                   Order ID: <strong>{orderId}</strong>
                 </div>
               )}
+
+              {redirectUrl && (
+                <div style={{ marginTop: "10px" }}>
+                  <a
+                    href={redirectUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 12px",
+                      background: "#166534",
+                      color: "#fff",
+                      borderRadius: "6px",
+                      textDecoration: "none",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                    }}
+                  >
+                    <span>Buka Halaman Pembayaran Midtrans</span>
+                    <ExternalLink size={13} />
+                  </a>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -378,7 +476,7 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
                   size={17}
                   className="midtrans-loading-icon"
                 />
-                Membuat Transaksi...
+                Membuka Pembayaran Midtrans...
               </>
             ) : (
               <>

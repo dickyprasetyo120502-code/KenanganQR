@@ -301,6 +301,9 @@ export async function loginWithGoogleOAuth(
     if (parsed.isJson && parsed.data) {
       if (res.ok && parsed.data.user) {
         saveUser(parsed.data.user);
+        if (parsed.data.accessToken) {
+          saveAccessToken(parsed.data.accessToken);
+        }
         return {
           success: true,
           message: parsed.data.message || "Login Google berhasil!",

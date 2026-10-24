@@ -344,8 +344,8 @@ function Home() {
         planName={selectedPlan.name}
         planPrice={selectedPlan.price}
         planDuration={selectedPlan.duration}
-        userEmail={user?.email || "tamu@kenanganqr.com"}
-        userName={user?.name || "Pengguna KenanganQR"}
+        userEmail={user?.email || ""}
+        userName={user?.name || ""}
         onPaymentSuccess={(info) => {
           alert(`Pembayaran Midtrans berhasil (${info.orderId})! Paket ${info.planName} aktif.`);
           window.location.href = user ? "/dashboard" : "/login?redirect=/dashboard";

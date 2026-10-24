@@ -30,6 +30,10 @@ import {
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { downloadDesignedQRCard } from "../utils/qrDesign";
+import MidtransPaymentModal from "../components/MidtransPaymentModal";
+import ConfirmSubscriptionModal, {
+  type PlanDetail,
+} from "../components/ConfirmSubscriptionModal";
 
 import {
   getUser,
@@ -37,6 +41,9 @@ import {
   removeUser,
   getGalleries,
   saveGalleries,
+  getUserSubscription,
+  saveUserSubscription,
+  fetchSubscriptionStatus,
   type UserProfile,
   type Gallery,
 } from "../utils/storage";
@@ -65,6 +72,14 @@ function Dashboard() {
       return;
     }
 
+    if (user?.email) {
+      fetchSubscriptionStatus(user.email).then((sub) => {
+        if (sub.isSubscribed) {
+          setIsSubscribed(true);
+        }
+      });
+    }
+
     // Ambil HANYA galeri milik user yang sedang login
     if (isSupabaseConfigured) {
       fetchAllGalleriesFromSupabase(user.email).then((remote) => {
@@ -86,6 +101,19 @@ function Dashboard() {
   const [notice, setNotice] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  // Status langganan pengguna & modal pembayaran
+  const [isSubscribed, setIsSubscribed] = useState<boolean>(() => {
+    const cached = getUserSubscription(user?.email);
+    return cached.isSubscribed;
+  });
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showMidtransModal, setShowMidtransModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<{
+    name: string;
+    price: number;
+    duration: string;
+  }>({ name: "Basic", price: 19000, duration: "7 hari akses" });
 
   // Profile modal state
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -242,7 +270,27 @@ function Dashboard() {
     }
   };
 
+  const handleConfirmDashboardPlan = (plan: PlanDetail) => {
+    setSelectedPlan({
+      name: plan.name,
+      price: plan.price,
+      duration: plan.duration,
+    });
+    setShowConfirmModal(false);
+    setShowMidtransModal(true);
+  };
+
   const handleDownloadQR = (gallery: Gallery, mode: "designed" | "plain" = "designed") => {
+    // Peraturan: Kalo belum berlangganan jangan boleh download gambar
+    if (!isSubscribed) {
+      setSelectedQR(null); // Tutup QR modal
+      setShowConfirmModal(true);
+      setNotice(
+        "🔒 Fitur unduh kartu QR & foto hanya tersedia untuk album yang sudah berlangganan paket Basic (Rp 19.000) atau Premium (Rp 50.000). Silakan aktifkan langganan Anda!",
+      );
+      return;
+    }
+
     const canvas = document.querySelector("#dashboard-qr-canvas") as HTMLCanvasElement;
     if (canvas) {
       if (mode === "designed") {
@@ -856,10 +904,18 @@ function Dashboard() {
                 className="dashboard-modal-submit"
                 style={{ width: "100%" }}
                 onClick={() => handleDownloadQR(selectedQR, "designed")}
-                title="Unduh format kartu desain elegan lengkap siap cetak"
+                title={
+                  isSubscribed
+                    ? "Unduh format kartu desain elegan lengkap siap cetak"
+                    : "Terkunci: Berlangganan untuk mengunduh desain kartu QR"
+                }
               >
-                <Download size={18} />
-                Unduh Desain Kartu QR (Siap Cetak)
+                {isSubscribed ? <Download size={18} /> : <Lock size={16} />}
+                <span>
+                  {isSubscribed
+                    ? "Unduh Desain Kartu QR (Siap Cetak)"
+                    : "Unduh Desain QR (Khusus Pelanggan)"}
+                </span>
               </button>
 
               <div style={{ display: "flex", gap: "8px", width: "100%" }}>
@@ -868,10 +924,14 @@ function Dashboard() {
                   className="dashboard-modal-cancel"
                   style={{ flex: 1, fontSize: "12.5px" }}
                   onClick={() => handleDownloadQR(selectedQR, "plain")}
-                  title="Unduh hanya gambar QR Code polos"
+                  title={
+                    isSubscribed
+                      ? "Unduh hanya gambar QR Code polos"
+                      : "Terkunci: Berlangganan untuk mengunduh QR Code"
+                  }
                 >
-                  <QrCode size={16} />
-                  QR Polos
+                  {isSubscribed ? <QrCode size={16} /> : <Lock size={14} />}
+                  <span>{isSubscribed ? "QR Polos" : "QR Polos (Terkunci)"}</span>
                 </button>
 
                 <button
@@ -1163,7 +1223,38 @@ function Dashboard() {
         </div>
       )}
 
-      {/* MODAL PEMBAYARAN MIDTRANS - dipindahkan ke alur pilihan paket */}
+      {/* MODAL KONFIRMASI LANGGANAN */}
+      <ConfirmSubscriptionModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        selectedPlanId="basic"
+        onConfirm={handleConfirmDashboardPlan}
+      />
+
+      {/* MODAL PEMBAYARAN MIDTRANS */}
+      <MidtransPaymentModal
+        isOpen={showMidtransModal}
+        onClose={() => setShowMidtransModal(false)}
+        planName={selectedPlan.name}
+        planPrice={selectedPlan.price}
+        planDuration={selectedPlan.duration}
+        userEmail={user?.email || ""}
+        userName={user?.name || ""}
+        onPaymentSuccess={(info) => {
+          setIsSubscribed(true);
+          const isPrem = info.planName.toLowerCase().includes("premium");
+          if (user?.email) {
+            saveUserSubscription(user.email, {
+              planId: isPrem ? "premium" : "basic",
+              planName: `Paket ${info.planName}`,
+              durationDays: isPrem ? 30 : 7,
+            });
+          }
+          setNotice(
+            `Pembayaran Midtrans berhasil (${info.orderId})! Paket ${info.planName} aktif. Fitur unduh telah dibuka!`,
+          );
+        }}
+      />
     </main>
   );
 }

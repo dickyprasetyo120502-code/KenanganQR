@@ -8,6 +8,7 @@ import {
   X,
   Check,
   Images,
+  Clock,
 } from "lucide-react";
 
 import logoImage from "../assets/logo.jpg";
@@ -118,6 +119,12 @@ function CreateGallery() {
         allowGuestUploads,
         allowGuestMessages,
         isNew: true,
+        createdAt: new Date().toISOString(),
+        isSubscribed: false,
+        canDownload: false,
+        daysActive: 0,
+        daysRemaining: 7,
+        subscriptionPlan: "Gratis (Uji Coba 7 Hari)",
       };
 
       // Simpan ke Supabase jika sudah terhubung dengan menyertakan userEmail
@@ -159,6 +166,32 @@ function CreateGallery() {
             <h1>Buat Galeri Baru</h1>
             <span />
             <p>Isi detail galeri, lalu bagikan QR code kepada tamu</p>
+          </div>
+
+          <div
+            style={{
+              padding: "14px 18px",
+              background: "#fffbeb",
+              border: "1px solid #fde68a",
+              borderRadius: "10px",
+              marginBottom: "22px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "12px",
+              color: "#92400e",
+              fontSize: "13px",
+              lineHeight: 1.5,
+            }}
+          >
+            <Clock size={20} style={{ flexShrink: 0, marginTop: "2px", color: "#b45309" }} />
+            <div>
+              <strong style={{ fontSize: "14px", color: "#78350f" }}>
+                🎁 Paket Gratis 7 Hari Aktif Otomatis
+              </strong>
+              <div style={{ marginTop: "4px" }}>
+                Setiap album baru gratis aktif selama <strong>7 hari</strong>. Peringatan akan dikirim ke Gmail pemilik di <strong>hari ke-5</strong>. Setelah 7 hari, foto-foto akan terhapus otomatis jika belum berlangganan. Fitur unduh foto & kartu QR siap cetak dapat dibuka dengan berlangganan paket Basic / Premium kapan saja.
+              </div>
+            </div>
           </div>
 
           <form className="create-gallery-form" onSubmit={handleSubmit}>

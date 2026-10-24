@@ -32,6 +32,14 @@ export interface Gallery {
   allowGuestUploads: boolean;
   allowGuestMessages: boolean;
   isNew?: boolean;
+  createdAt?: string;
+  isSubscribed?: boolean;
+  canDownload?: boolean;
+  daysActive?: number;
+  daysRemaining?: number;
+  isTrialExpired?: boolean;
+  photosPurged?: boolean;
+  subscriptionPlan?: string;
   photosList?: GalleryPhoto[];
   messagesList?: GalleryMessage[];
 }
@@ -159,4 +167,88 @@ export function updateGallery(updated: Gallery): void {
       // ignore
     }
   }
+}
+
+// ==========================================
+// PENGELOLAAN STATUS BERLANGGANAN (LOCAL CACHE & SYNC)
+// ==========================================
+
+export interface UserSubscriptionData {
+  isSubscribed: boolean;
+  planId?: string;
+  planName?: string;
+  expiresAt?: string;
+  canDownload?: boolean;
+}
+
+export function getUserSubscription(userEmail?: string): UserSubscriptionData {
+  if (!userEmail) return { isSubscribed: false, canDownload: false };
+  const key = `kenanganqr-sub-${userEmail.trim().toLowerCase()}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return { isSubscribed: false, canDownload: false };
+    const data = JSON.parse(raw);
+    if (data.expiresAt && new Date(data.expiresAt).getTime() > Date.now()) {
+      return {
+        isSubscribed: true,
+        planId: data.planId,
+        planName: data.planName,
+        expiresAt: data.expiresAt,
+        canDownload: true,
+      };
+    }
+  } catch {}
+  return { isSubscribed: false, canDownload: false };
+}
+
+export function saveUserSubscription(
+  userEmail: string,
+  sub: { planId: string; planName: string; durationDays: number }
+): void {
+  const key = `kenanganqr-sub-${userEmail.trim().toLowerCase()}`;
+  const expiresAt = new Date(
+    Date.now() + sub.durationDays * 24 * 60 * 60 * 1000
+  ).toISOString();
+  localStorage.setItem(
+    key,
+    JSON.stringify({
+      isSubscribed: true,
+      planId: sub.planId,
+      planName: sub.planName,
+      expiresAt,
+      canDownload: true,
+    })
+  );
+}
+
+export async function fetchSubscriptionStatus(
+  userEmail: string
+): Promise<UserSubscriptionData> {
+  const cleanEmail = (userEmail || "").trim().toLowerCase();
+  if (!cleanEmail) {
+    return { isSubscribed: false, canDownload: false };
+  }
+
+  try {
+    const res = await fetch(`/api/subscription/status?email=${encodeURIComponent(cleanEmail)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.isSubscribed) {
+        saveUserSubscription(cleanEmail, {
+          planId: data.plan || "basic",
+          planName: data.planName || "Paket Berlangganan",
+          durationDays: data.durationDays || 7,
+        });
+      }
+      return {
+        isSubscribed: Boolean(data.isSubscribed),
+        planId: data.plan,
+        planName: data.planName,
+        expiresAt: data.expiresAt,
+        canDownload: Boolean(data.isSubscribed),
+      };
+    }
+  } catch {}
+
+  return getUserSubscription(cleanEmail);
 }

@@ -77,6 +77,8 @@ model Gallery {
   allowGuestUploads  Boolean          @default(true) @map("allow_guest_uploads")
   allowGuestMessages Boolean          @default(true) @map("allow_guest_messages")
   isActive           Boolean          @default(true) @map("is_active")
+  reminderSentAt     DateTime?        @map("reminder_sent_at") @db.Timestamptz
+  photosPurgedAt     DateTime?        @map("photos_purged_at") @db.Timestamptz
   createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
