@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { supabase } from "./supabase";
 import type { UserProfile } from "../utils/storage";
-import { saveUser } from "../utils/storage";
+import { saveUser, saveAccessToken } from "../utils/storage";
 
 const API_BASE = "/api/auth";
 
@@ -18,7 +18,7 @@ export interface AuthResult {
  * jika server merespons dengan status 405 Method Not Allowed, 502/504, atau halaman HTML.
  */
 async function parseResponseSafe(
-  res: Response
+  res: Response,
 ): Promise<{ isJson: boolean; data: any }> {
   try {
     const text = await res.text();
@@ -40,7 +40,7 @@ async function parseResponseSafe(
 export async function registerUser(
   name: string,
   email: string,
-  password: string
+  password: string,
 ): Promise<AuthResult> {
   const cleanEmail = email.trim().toLowerCase();
   const cleanName = name.trim();
@@ -58,12 +58,17 @@ export async function registerUser(
       if (!res.ok) {
         return {
           success: false,
-          error: parsed.data.error || "Gagal mendaftar akun. Silakan coba lagi.",
+          error:
+            parsed.data.error || "Gagal mendaftar akun. Silakan coba lagi.",
         };
       }
 
       if (parsed.data.user) {
         saveUser(parsed.data.user);
+
+        if (parsed.data.accessToken) {
+          saveAccessToken(parsed.data.accessToken);
+        }
       }
 
       return {
@@ -73,14 +78,18 @@ export async function registerUser(
       };
     }
   } catch (err) {
-    console.warn("Express backend API tidak dapat dijangkau, beralih ke Supabase fallback:", err);
+    console.warn(
+      "Express backend API tidak dapat dijangkau, beralih ke Supabase fallback:",
+      err,
+    );
   }
 
   // 2. Fallback langsung ke Supabase Client jika Express server tidak aktif
   if (!supabase) {
     return {
       success: false,
-      error: "Tidak dapat terhubung ke server autentikasi atau database Supabase.",
+      error:
+        "Tidak dapat terhubung ke server autentikasi atau database Supabase.",
     };
   }
 
@@ -132,7 +141,9 @@ export async function registerUser(
     };
   } catch (sbErr: unknown) {
     const errorMsg =
-      sbErr instanceof Error ? sbErr.message : "Gagal mendaftar melalui database Supabase.";
+      sbErr instanceof Error
+        ? sbErr.message
+        : "Gagal mendaftar melalui database Supabase.";
     return {
       success: false,
       error: errorMsg,
@@ -147,7 +158,7 @@ export async function registerUser(
  */
 export async function loginUser(
   email: string,
-  password: string
+  password: string,
 ): Promise<AuthResult> {
   const cleanEmail = email.trim().toLowerCase();
 
@@ -173,6 +184,10 @@ export async function loginUser(
 
       if (parsed.data.user) {
         saveUser(parsed.data.user);
+
+        if (parsed.data.accessToken) {
+          saveAccessToken(parsed.data.accessToken);
+        }
       }
 
       return {
@@ -182,14 +197,18 @@ export async function loginUser(
       };
     }
   } catch (err) {
-    console.warn("Express backend API tidak dapat dijangkau, beralih ke Supabase fallback:", err);
+    console.warn(
+      "Express backend API tidak dapat dijangkau, beralih ke Supabase fallback:",
+      err,
+    );
   }
 
   // 2. Fallback langsung ke Supabase Client
   if (!supabase) {
     return {
       success: false,
-      error: "Tidak dapat terhubung ke server autentikasi atau database Supabase.",
+      error:
+        "Tidak dapat terhubung ke server autentikasi atau database Supabase.",
     };
   }
 
@@ -203,7 +222,8 @@ export async function loginUser(
     if (fetchErr || !user) {
       return {
         success: false,
-        error: "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!",
+        error:
+          "Akun belum terdaftar. Anda wajib membuat akun terlebih dahulu sebelum masuk!",
         notRegistered: true,
       };
     }
@@ -212,7 +232,8 @@ export async function loginUser(
     if (!hash) {
       return {
         success: false,
-        error: "Akun ini didaftarkan via Google. Silakan masuk menggunakan tombol Masuk dengan Google.",
+        error:
+          "Akun ini didaftarkan via Google. Silakan masuk menggunakan tombol Masuk dengan Google.",
       };
     }
 
@@ -239,7 +260,9 @@ export async function loginUser(
     };
   } catch (sbErr: unknown) {
     const errorMsg =
-      sbErr instanceof Error ? sbErr.message : "Gagal memverifikasi login akun.";
+      sbErr instanceof Error
+        ? sbErr.message
+        : "Gagal memverifikasi login akun.";
     return {
       success: false,
       error: errorMsg,
@@ -256,7 +279,7 @@ export async function loginWithGoogleOAuth(
   email: string,
   name?: string,
   avatar?: string,
-  mode: "login" | "register" = "login"
+  mode: "login" | "register" = "login",
 ): Promise<AuthResult> {
   const cleanEmail = email.trim().toLowerCase();
   const displayName = name ? name.trim() : cleanEmail.split("@")[0];
@@ -266,7 +289,12 @@ export async function loginWithGoogleOAuth(
     const res = await fetch(`${API_BASE}/google`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cleanEmail, name: displayName, avatar, mode }),
+      body: JSON.stringify({
+        email: cleanEmail,
+        name: displayName,
+        avatar,
+        mode,
+      }),
     });
 
     const parsed = await parseResponseSafe(res);
@@ -279,10 +307,16 @@ export async function loginWithGoogleOAuth(
           user: parsed.data.user,
         };
       }
-      console.warn("Express API /google returned error, proceeding to Supabase fallback:", parsed.data);
+      console.warn(
+        "Express API /google returned error, proceeding to Supabase fallback:",
+        parsed.data,
+      );
     }
   } catch (err) {
-    console.warn("Express backend API tidak dapat dijangkau, beralih ke Supabase Google fallback:", err);
+    console.warn(
+      "Express backend API tidak dapat dijangkau, beralih ke Supabase Google fallback:",
+      err,
+    );
   }
 
   // 2. Fallback langsung ke Supabase Client
@@ -331,7 +365,8 @@ export async function loginWithGoogleOAuth(
       if (insertErr || !newUser) {
         return {
           success: false,
-          error: insertErr?.message || "Gagal menyimpan akun Google ke database.",
+          error:
+            insertErr?.message || "Gagal menyimpan akun Google ke database.",
         };
       }
       finalUser = newUser;
@@ -340,7 +375,8 @@ export async function loginWithGoogleOAuth(
     const userProfile: UserProfile = {
       name: finalUser.full_name || finalUser.fullName || displayName,
       email: finalUser.email,
-      avatar: finalUser.avatar_url || finalUser.avatarUrl || avatar || undefined,
+      avatar:
+        finalUser.avatar_url || finalUser.avatarUrl || avatar || undefined,
     };
 
     saveUser(userProfile);
@@ -366,7 +402,7 @@ export async function loginWithGoogleOAuth(
 export async function changeUserPassword(
   email: string,
   currentPassword: string,
-  newPassword: string
+  newPassword: string,
 ): Promise<AuthResult> {
   const cleanEmail = email.trim().toLowerCase();
 
@@ -393,7 +429,10 @@ export async function changeUserPassword(
       };
     }
   } catch (err) {
-    console.warn("Express API tidak dapat dijangkau, beralih ke Supabase change-password fallback:", err);
+    console.warn(
+      "Express API tidak dapat dijangkau, beralih ke Supabase change-password fallback:",
+      err,
+    );
   }
 
   // 2. Fallback langsung ke Supabase Client
@@ -422,7 +461,8 @@ export async function changeUserPassword(
     if (!currentHash) {
       return {
         success: false,
-        error: "Akun ini didaftarkan via Google OAuth dan tidak memiliki kata sandi lama.",
+        error:
+          "Akun ini didaftarkan via Google OAuth dan tidak memiliki kata sandi lama.",
       };
     }
 
@@ -472,7 +512,7 @@ export async function changeUserPassword(
  */
 export async function resetUserPassword(
   email: string,
-  newPassword: string
+  newPassword: string,
 ): Promise<AuthResult> {
   const cleanEmail = email.trim().toLowerCase();
 
@@ -500,14 +540,18 @@ export async function resetUserPassword(
       };
     }
   } catch (err) {
-    console.warn("Express backend API tidak dapat dijangkau, beralih ke Supabase reset fallback:", err);
+    console.warn(
+      "Express backend API tidak dapat dijangkau, beralih ke Supabase reset fallback:",
+      err,
+    );
   }
 
   // 2. Fallback langsung ke Supabase Client jika Express server tidak aktif
   if (!supabase) {
     return {
       success: false,
-      error: "Tidak dapat terhubung ke server autentikasi atau database Supabase.",
+      error:
+        "Tidak dapat terhubung ke server autentikasi atau database Supabase.",
     };
   }
 
@@ -521,7 +565,8 @@ export async function resetUserPassword(
     if (findErr || !user) {
       return {
         success: false,
-        error: "Email tidak terdaftar dalam sistem. Silakan periksa kembali atau buat akun baru.",
+        error:
+          "Email tidak terdaftar dalam sistem. Silakan periksa kembali atau buat akun baru.",
         notRegistered: true,
       };
     }
@@ -544,11 +589,14 @@ export async function resetUserPassword(
 
     return {
       success: true,
-      message: "Kata sandi Anda berhasil diperbarui! Silakan masuk dengan kata sandi baru Anda.",
+      message:
+        "Kata sandi Anda berhasil diperbarui! Silakan masuk dengan kata sandi baru Anda.",
     };
   } catch (sbErr: unknown) {
     const errorMsg =
-      sbErr instanceof Error ? sbErr.message : "Gagal mengatur ulang kata sandi.";
+      sbErr instanceof Error
+        ? sbErr.message
+        : "Gagal mengatur ulang kata sandi.";
     return {
       success: false,
       error: errorMsg,
@@ -574,7 +622,7 @@ export function decodeGoogleJwt(token: string): {
       atob(base64)
         .split("")
         .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
+        .join(""),
     );
     const data = JSON.parse(jsonPayload);
     return {
@@ -587,4 +635,3 @@ export function decodeGoogleJwt(token: string): {
     return null;
   }
 }
-

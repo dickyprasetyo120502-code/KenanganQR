@@ -39,6 +39,20 @@ export interface Gallery {
 const USER_KEY = "kenanganqr-user";
 const GALLERIES_KEY = "kenanganqr-galleries";
 
+const ACCESS_TOKEN_KEY = "kenanganqr-access-token";
+
+export function getAccessToken(): string | null {
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function saveAccessToken(token: string): void {
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+}
+
+export function removeAccessToken(): void {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+}
+
 export function getUser(): UserProfile | null {
   try {
     const raw = localStorage.getItem(USER_KEY);

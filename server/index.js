@@ -1,16 +1,25 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import midtransClient from "midtrans-client";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "./prisma.js";
-
+import crypto from "node:crypto";
 
 // Muat environment variables dari .env
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Konfigurasi Midtrans Snap Sandbox
+const snap = new midtransClient.Snap({
+  isProduction: false,
+  serverKey: process.env.MIDTRANS_SERVER_KEY,
+  clientKey: process.env.VITE_MIDTRANS_CLIENT_KEY,
+});
 
 // Konfigurasi Supabase Storage & SDK (Untuk upload media & fallback)
 const rawUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "").trim();
@@ -108,6 +117,51 @@ function formatUserResponse(user) {
     avatar: user.avatarUrl || user.avatar_url || null,
     createdAt: user.createdAt || user.created_at,
   };
+}
+// Membuat access token untuk pengguna yang berhasil login
+function createAccessToken(user) {
+  const secret = process.env.JWT_SECRET;
+
+  if (!secret) {
+    throw new Error("JWT_SECRET belum dikonfigurasi.");
+  }
+
+  return jwt.sign(
+    {
+      email: user.email,
+    },
+    secret,
+    {
+      subject: String(user.id),
+      expiresIn: "1h",
+    }
+  );
+}
+// Memverifikasi token JWT dari request
+function authenticateToken(req, res, next) {
+  const authorization = req.headers.authorization;
+
+  if (!authorization || !authorization.startsWith("Bearer ")) {
+    return res.status(401).json({
+      error: "Silakan login terlebih dahulu.",
+    });
+  }
+
+  const token = authorization.slice(7);
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.auth = {
+      userId: payload.sub,
+      email: payload.email,
+    };
+
+    next();
+  } catch {
+    return res.status(401).json({
+      error: "Sesi login tidak valid atau sudah kedaluwarsa. Silakan login kembali.",
+    });
+  }
 }
 
 // POST /api/auth/register - Pendaftaran akun baru
@@ -282,10 +336,13 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     // LOGIN SUKSES
-    return res.json({
-      message: "Login berhasil! Selamat datang kembali.",
-      user: formatUserResponse(user),
-    });
+const accessToken = createAccessToken(user);
+
+return res.json({
+  message: "Login berhasil! Selamat datang kembali.",
+  accessToken,
+  user: formatUserResponse(user),
+});
   } catch (err) {
     console.error("Server error on /api/auth/login:", err);
     res.status(500).json({ error: err.message });
@@ -1144,6 +1201,282 @@ app.post("/api/upload", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
+/* ==========================================
+   MIDTRANS PAYMENT - CREATE SNAP TRANSACTION
+========================================== */
+app.post(
+  "/api/payments/create",
+  authenticateToken,
+  async (req, res) => {
+    let payment = null;
+
+    try {
+      // Pembayaran wajib menggunakan database utama.
+      if (!prisma) {
+        return res.status(503).json({
+          error: "Database pembayaran belum tersedia.",
+        });
+      }
+
+      if (
+        !process.env.MIDTRANS_SERVER_KEY ||
+        !process.env.VITE_MIDTRANS_CLIENT_KEY
+      ) {
+        return res.status(503).json({
+          error: "Konfigurasi pembayaran belum tersedia.",
+        });
+      }
+
+      // Harga dan durasi hanya ditentukan oleh backend.
+      const plans = {
+        basic: {
+          name: "Paket Basic",
+          price: 19000,
+          durationDays: 7,
+        },
+        premium: {
+          name: "Paket Premium",
+          price: 50000,
+          durationDays: 30,
+        },
+      };
+
+      const { planId } = req.body ?? {};
+
+      if (
+        typeof planId !== "string" ||
+        !Object.hasOwn(plans, planId)
+      ) {
+        return res.status(400).json({
+          error: "Paket tidak valid.",
+        });
+      }
+
+      // Ambil identitas dari JWT, lalu cocokkan dengan database.
+      const user = await prisma.user.findUnique({
+        where: {
+          id: req.auth.userId,
+        },
+      });
+
+      if (!user) {
+        return res.status(401).json({
+          error: "Akun tidak ditemukan. Silakan login kembali.",
+        });
+      }
+
+      const plan = plans[planId];
+
+      const orderId = `KQR-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 10)}`;
+
+      // Simpan transaksi terlebih dahulu sebagai PENDING.
+      payment = await prisma.payment.create({
+        data: {
+          orderId,
+          userId: user.id,
+          planId,
+          planName: plan.name,
+          amount: plan.price,
+          durationDays: plan.durationDays,
+          status: "PENDING",
+        },
+      });
+
+      let transaction;
+
+      try {
+        transaction = await snap.createTransaction({
+          transaction_details: {
+            order_id: orderId,
+            gross_amount: plan.price,
+          },
+          item_details: [
+            {
+              id: planId,
+              price: plan.price,
+              quantity: 1,
+              name: plan.name,
+            },
+          ],
+          customer_details: {
+            first_name: (
+              user.fullName || "Pelanggan"
+            ).slice(0, 50),
+            email: user.email,
+          },
+          custom_expiry: {
+            expiry_duration: 60,
+            unit: "minute",
+          },
+        });
+      } catch (midtransError) {
+        // Status tetap PENDING jika hasil request Midtrans
+        // tidak dapat dipastikan. Jangan anggap pembayaran gagal
+        // sebelum statusnya diperiksa melalui API Midtrans.
+        console.error(
+          "Gagal meminta transaksi Snap:",
+          midtransError.message
+        );
+
+        return res.status(502).json({
+          error:
+            "Token pembayaran belum dapat diperoleh. Periksa status transaksi sebelum mencoba lagi.",
+          orderId,
+        });
+      }
+
+      return res.status(201).json({
+        orderId,
+        planId,
+        planName: plan.name,
+        amount: plan.price,
+        durationDays: plan.durationDays,
+        token: transaction.token,
+        redirectUrl: transaction.redirect_url,
+      });
+    } catch (err) {
+      console.error(
+        "Gagal membuat transaksi pembayaran:",
+        err.message
+      );
+
+      return res.status(500).json({
+        error: "Transaksi belum dapat dibuat. Silakan coba lagi.",
+      });
+    }
+  }
+);
+
+
+
+
+/* ==========================================
+   MIDTRANS WEBHOOK - PAYMENT NOTIFICATION
+========================================== */
+app.post("/api/payments/notification", async (req, res) => {
+  try {
+    if (!prisma || !process.env.MIDTRANS_SERVER_KEY) {
+      return res.status(503).json({
+        error: "Layanan pembayaran belum tersedia.",
+      });
+    }
+
+    // Verifikasi notifikasi melalui API resmi Midtrans.
+    const statusResponse =
+      await snap.transaction.notification(req.body);
+
+    const {
+      order_id: orderId,
+      transaction_status: transactionStatus,
+      fraud_status: fraudStatus,
+      transaction_id: transactionId,
+      payment_type: paymentType,
+      status_code: statusCode,
+      gross_amount: grossAmount,
+    } = statusResponse;
+
+    if (!orderId || !transactionStatus) {
+      return res.status(400).json({
+        error: "Data transaksi dari Midtrans tidak lengkap.",
+      });
+    }
+
+    // Cari transaksi yang dibuat oleh backend KenanganQR.
+    const payment = await prisma.payment.findUnique({
+      where: { orderId },
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        error: "Transaksi tidak ditemukan.",
+      });
+    }
+
+    // Validasi nominal dan kode status sukses.
+    if (
+      !Number.isFinite(Number(grossAmount)) ||
+      Number(grossAmount) !== payment.amount
+    ) {
+      return res.status(400).json({
+        error: "Nominal transaksi tidak cocok.",
+      });
+    }
+
+    let newStatus;
+
+    if (
+      transactionStatus === "settlement" ||
+      (transactionStatus === "capture" &&
+        fraudStatus === "accept")
+    ) {
+      if (statusCode !== "200" && statusCode !== 200) {
+        return res.status(400).json({
+          error: "Kode status pembayaran tidak valid.",
+        });
+      }
+
+      newStatus = "PAID";
+    } else if (transactionStatus === "pending") {
+      newStatus = "PENDING";
+    } else if (transactionStatus === "expire") {
+      newStatus = "EXPIRED";
+    } else if (transactionStatus === "cancel") {
+      newStatus = "CANCELLED";
+    } else if (transactionStatus === "deny") {
+      newStatus = "FAILED";
+    } else if (
+      transactionStatus === "refund" ||
+      transactionStatus === "partial_refund"
+    ) {
+      newStatus = "REFUNDED";
+    } else {
+      // Status lain tidak boleh dianggap sebagai pembayaran sukses.
+      return res.status(200).json({
+        message: "Status transaksi diterima tanpa perubahan.",
+      });
+    }
+
+    // Jangan biarkan notifikasi lama menurunkan status PAID.
+    if (payment.status === "PAID" && newStatus !== "REFUNDED") {
+      return res.status(200).json({
+        message: "Pembayaran sudah terkonfirmasi.",
+      });
+    }
+
+    await prisma.payment.update({
+      where: { orderId },
+      data: {
+        status: newStatus,
+        midtransTransactionId: transactionId ?? undefined,
+        paymentType: paymentType ?? undefined,
+        ...(newStatus === "PAID" && !payment.paidAt
+          ? { paidAt: new Date() }
+          : {}),
+      },
+    });
+
+    console.log(`[Midtrans] Order ${orderId}: ${newStatus}`);
+
+    return res.status(200).json({
+      message: "Notifikasi berhasil diproses.",
+    });
+  } catch (error) {
+    console.error(
+      "Gagal memproses notifikasi Midtrans:",
+      error.message
+    );
+
+    return res.status(500).json({
+      error: "Notifikasi belum dapat diproses.",
+    });
+  }
+});
+
 
 // START SERVER
 app.listen(PORT, () => {

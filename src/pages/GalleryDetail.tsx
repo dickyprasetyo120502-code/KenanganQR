@@ -23,12 +23,15 @@ import {
 import { QRCodeCanvas } from "qrcode.react";
 import { downloadDesignedQRCard } from "../utils/qrDesign";
 import MidtransPaymentModal from "../components/MidtransPaymentModal";
-import ConfirmSubscriptionModal, { type PlanDetail } from "../components/ConfirmSubscriptionModal";
+import ConfirmSubscriptionModal, {
+  type PlanDetail,
+} from "../components/ConfirmSubscriptionModal";
 
 import {
   getUser,
   saveUser,
   removeUser,
+  removeAccessToken,
   getGalleries,
   getGalleryById,
   updateGallery,
@@ -90,15 +93,22 @@ function GalleryDetail() {
     };
   });
 
-  const [activeTab, setActiveTab] = useState<"Foto" | "Pesan Kenangan" | "Pengaturan">(() => {
+  const [activeTab, setActiveTab] = useState<
+    "Foto" | "Pesan Kenangan" | "Pengaturan"
+  >(() => {
     const tabParam = params.get("tab");
-    if (tabParam === "Pengaturan" || tabParam === "settings") return "Pengaturan";
+    if (tabParam === "Pengaturan" || tabParam === "settings")
+      return "Pengaturan";
     if (tabParam === "Pesan Kenangan") return "Pesan Kenangan";
     return "Foto";
   });
 
-  const [photos, setPhotos] = useState<GalleryPhoto[]>(() => gallery.photosList || []);
-  const [messages, setMessages] = useState<GalleryMessage[]>(() => gallery.messagesList || []);
+  const [photos, setPhotos] = useState<GalleryPhoto[]>(
+    () => gallery.photosList || [],
+  );
+  const [messages, setMessages] = useState<GalleryMessage[]>(
+    () => gallery.messagesList || [],
+  );
 
   // Ambil data terbaru dari Supabase/Backend jika tersedia dan proteksi akses pemilik
   useEffect(() => {
@@ -108,7 +118,9 @@ function GalleryDetail() {
       if (queryId) {
         window.location.assign(`/galeri?id=${queryId}`);
       } else {
-        window.location.assign(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+        window.location.assign(
+          `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`,
+        );
       }
       return;
     }
@@ -122,7 +134,8 @@ function GalleryDetail() {
           if (
             remote.userEmail &&
             user.email &&
-            remote.userEmail.trim().toLowerCase() !== user.email.trim().toLowerCase()
+            remote.userEmail.trim().toLowerCase() !==
+              user.email.trim().toLowerCase()
           ) {
             window.location.assign(`/galeri?id=${queryId}`);
             return;
@@ -155,19 +168,23 @@ function GalleryDetail() {
 
   // Guest settings
   const [allowGuestUploads, setAllowGuestUploads] = useState<boolean>(
-    gallery.allowGuestUploads ?? true
+    gallery.allowGuestUploads ?? true,
   );
   const [allowGuestMessages, setAllowGuestMessages] = useState<boolean>(
-    gallery.allowGuestMessages ?? true
+    gallery.allowGuestMessages ?? true,
   );
 
   const guestUrl = `${window.location.origin}/galeri?id=${gallery.id}`;
 
-  const userInitial = user?.name ? user.name.trim().charAt(0).toUpperCase() : "U";
+  const userInitial = user?.name
+    ? user.name.trim().charAt(0).toUpperCase()
+    : "U";
 
   const handleGuestUploadsChange = (enabled: boolean) => {
     setAllowGuestUploads(enabled);
-    const userEmail = user?.email ? user.email.trim().toLowerCase() : gallery.userEmail;
+    const userEmail = user?.email
+      ? user.email.trim().toLowerCase()
+      : gallery.userEmail;
     const updated: Gallery = {
       ...gallery,
       userEmail,
@@ -181,13 +198,15 @@ function GalleryDetail() {
     setNotice(
       enabled
         ? "Izin unggah foto dari tamu berhasil diaktifkan."
-        : "Izin unggah foto dari tamu dinonaktifkan."
+        : "Izin unggah foto dari tamu dinonaktifkan.",
     );
   };
 
   const handleGuestMessagesChange = (enabled: boolean) => {
     setAllowGuestMessages(enabled);
-    const userEmail = user?.email ? user.email.trim().toLowerCase() : gallery.userEmail;
+    const userEmail = user?.email
+      ? user.email.trim().toLowerCase()
+      : gallery.userEmail;
     const updated: Gallery = {
       ...gallery,
       userEmail,
@@ -201,7 +220,7 @@ function GalleryDetail() {
     setNotice(
       enabled
         ? "Izin pesan kenangan dari tamu berhasil diaktifkan."
-        : "Izin pesan kenangan dari tamu dinonaktifkan."
+        : "Izin pesan kenangan dari tamu dinonaktifkan.",
     );
   };
 
@@ -217,7 +236,9 @@ function GalleryDetail() {
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === "string") {
-        const userEmail = user?.email ? user.email.trim().toLowerCase() : gallery.userEmail;
+        const userEmail = user?.email
+          ? user.email.trim().toLowerCase()
+          : gallery.userEmail;
         const updated: Gallery = {
           ...gallery,
           userEmail,
@@ -238,7 +259,7 @@ function GalleryDetail() {
     if (!files) return;
 
     const selectedFiles = Array.from(files).filter((file) =>
-      file.type.startsWith("image/")
+      file.type.startsWith("image/"),
     );
     if (selectedFiles.length === 0) return;
 
@@ -258,7 +279,10 @@ function GalleryDetail() {
             photoUrl = uploadedUrl;
           }
         } catch (err) {
-          console.warn("Gagal upload ke Supabase Storage, menggunakan base64 fallback:", err);
+          console.warn(
+            "Gagal upload ke Supabase Storage, menggunakan base64 fallback:",
+            err,
+          );
         }
       }
 
@@ -291,7 +315,9 @@ function GalleryDetail() {
       const nextPhotos = [...createdPhotos, ...photos];
       setPhotos(nextPhotos);
 
-      const userEmail = user?.email ? user.email.trim().toLowerCase() : gallery.userEmail;
+      const userEmail = user?.email
+        ? user.email.trim().toLowerCase()
+        : gallery.userEmail;
       const updated: Gallery = {
         ...gallery,
         userEmail,
@@ -318,7 +344,9 @@ function GalleryDetail() {
     const nextPhotos = photos.filter((item) => item.id !== id);
     setPhotos(nextPhotos);
 
-    const userEmail = user?.email ? user.email.trim().toLowerCase() : gallery.userEmail;
+    const userEmail = user?.email
+      ? user.email.trim().toLowerCase()
+      : gallery.userEmail;
     const updated: Gallery = {
       ...gallery,
       userEmail,
@@ -349,7 +377,9 @@ function GalleryDetail() {
   };
 
   const handleDownloadQR = (mode: "designed" | "plain" = "designed") => {
-    const canvas = document.querySelector("#gd-guest-qr-canvas") as HTMLCanvasElement;
+    const canvas = document.querySelector(
+      "#gd-guest-qr-canvas",
+    ) as HTMLCanvasElement;
     if (canvas) {
       if (mode === "designed") {
         downloadDesignedQRCard({
@@ -399,8 +429,10 @@ function GalleryDetail() {
 
   const logout = () => {
     const confirmed = window.confirm("Yakin ingin keluar dari akun Anda?");
+
     if (confirmed) {
       removeUser();
+      removeAccessToken();
       window.location.assign("/login");
     }
   };
@@ -438,11 +470,12 @@ function GalleryDetail() {
             }}
             aria-label="Menu akun"
           >
-            <div className="gd-avatar gd-account-avatar">
-              {userInitial}
-            </div>
+            <div className="gd-avatar gd-account-avatar">{userInitial}</div>
 
-            <span className="gd-account-name" style={{ fontWeight: 600, color: "#342e24" }}>
+            <span
+              className="gd-account-name"
+              style={{ fontWeight: 600, color: "#342e24" }}
+            >
               {user?.name || "Pengguna"}
             </span>
 
@@ -464,8 +497,12 @@ function GalleryDetail() {
               <div className="dashboard-profile-header">
                 <span className="dashboard-avatar-large">{userInitial}</span>
                 <div>
-                  <p className="dashboard-profile-name">{user?.name || "Pengguna"}</p>
-                  <p className="dashboard-profile-email">{user?.email || "Belum ada email"}</p>
+                  <p className="dashboard-profile-name">
+                    {user?.name || "Pengguna"}
+                  </p>
+                  <p className="dashboard-profile-email">
+                    {user?.email || "Belum ada email"}
+                  </p>
                 </div>
               </div>
 
@@ -530,7 +567,14 @@ function GalleryDetail() {
                 <h1>{gallery.title}</h1>
 
                 <p className="gd-hero-date">
-                  <CalendarDays size={14} style={{ display: "inline", verticalAlign: "middle", marginRight: "6px" }} />
+                  <CalendarDays
+                    size={14}
+                    style={{
+                      display: "inline",
+                      verticalAlign: "middle",
+                      marginRight: "6px",
+                    }}
+                  />
                   {gallery.date}
                   <span>•</span>
                   {photos.length} Foto
@@ -539,7 +583,14 @@ function GalleryDetail() {
                 </p>
 
                 {gallery.description && (
-                  <p style={{ margin: "0 0 14px", fontSize: "13.5px", color: "rgba(255,255,255,0.85)", maxWidth: "600px" }}>
+                  <p
+                    style={{
+                      margin: "0 0 14px",
+                      fontSize: "13.5px",
+                      color: "rgba(255,255,255,0.85)",
+                      maxWidth: "600px",
+                    }}
+                  >
                     {gallery.description}
                   </p>
                 )}
@@ -561,7 +612,9 @@ function GalleryDetail() {
 
                   <div className="gd-stat">
                     <div>
-                      <strong>{allowGuestUploads ? "Aktif" : "Nonaktif"}</strong>
+                      <strong>
+                        {allowGuestUploads ? "Aktif" : "Nonaktif"}
+                      </strong>
                       <span>Upload Tamu</span>
                     </div>
                   </div>
@@ -588,9 +641,7 @@ function GalleryDetail() {
                   role="tab"
                   aria-selected={activeTab === "Pesan Kenangan"}
                   className={
-                    activeTab === "Pesan Kenangan"
-                      ? "gd-tab active"
-                      : "gd-tab"
+                    activeTab === "Pesan Kenangan" ? "gd-tab active" : "gd-tab"
                   }
                   onClick={() => setActiveTab("Pesan Kenangan")}
                 >
@@ -678,7 +729,10 @@ function GalleryDetail() {
                 <div className="gd-section-heading">
                   <div>
                     <h2>Pesan Kenangan</h2>
-                    <p>Ucapan dan doa dari orang-orang tersayang untuk {gallery.title}.</p>
+                    <p>
+                      Ucapan dan doa dari orang-orang tersayang untuk{" "}
+                      {gallery.title}.
+                    </p>
                   </div>
                   <span className="gd-count">{messages.length} pesan</span>
                 </div>
@@ -687,13 +741,18 @@ function GalleryDetail() {
                   <div className="gd-empty gd-empty-small">
                     <MessageCircle size={30} />
                     <h3>Belum ada pesan</h3>
-                    <p>Pesan dari tamu yang memindai QR Code akan tampil di bagian ini.</p>
+                    <p>
+                      Pesan dari tamu yang memindai QR Code akan tampil di
+                      bagian ini.
+                    </p>
                   </div>
                 ) : (
                   <div className="gd-message-list">
                     {messages.map((message) => (
                       <article className="gd-message" key={message.id}>
-                        <div className="gd-avatar">{message.name.charAt(0)}</div>
+                        <div className="gd-avatar">
+                          {message.name.charAt(0)}
+                        </div>
                         <div>
                           <div className="gd-message-meta">
                             <strong>{message.name}</strong>
@@ -714,16 +773,30 @@ function GalleryDetail() {
                 <div className="gd-settings">
                   <div className="gd-settings-heading">
                     <h2>Pengaturan Galeri</h2>
-                    <p>Kelola izin dan cara tamu berinteraksi dengan galeri "{gallery.title}".</p>
+                    <p>
+                      Kelola izin dan cara tamu berinteraksi dengan galeri "
+                      {gallery.title}".
+                    </p>
                   </div>
 
                   {/* TOGGLE IZIN UPLOAD FOTO DARI TAMU */}
                   <div className="gd-setting-item">
                     <div className="gd-setting-info">
                       <h3>Unggahan foto dari tamu</h3>
-                      <p>Atur izin apakah tamu yang memindai QR Code boleh menambahkan foto ke album ini.</p>
-                      <span className={allowGuestUploads ? "gd-setting-status is-on" : "gd-setting-status"}>
-                        {allowGuestUploads ? "✓ Diizinkan" : "✕ Tidak diizinkan"}
+                      <p>
+                        Atur izin apakah tamu yang memindai QR Code boleh
+                        menambahkan foto ke album ini.
+                      </p>
+                      <span
+                        className={
+                          allowGuestUploads
+                            ? "gd-setting-status is-on"
+                            : "gd-setting-status"
+                        }
+                      >
+                        {allowGuestUploads
+                          ? "✓ Diizinkan"
+                          : "✕ Tidak diizinkan"}
                       </span>
                     </div>
 
@@ -733,7 +806,9 @@ function GalleryDetail() {
                       aria-checked={allowGuestUploads}
                       aria-label="Izinkan unggahan foto dari tamu"
                       className={`gd-toggle ${allowGuestUploads ? "is-on" : ""}`}
-                      onClick={() => handleGuestUploadsChange(!allowGuestUploads)}
+                      onClick={() =>
+                        handleGuestUploadsChange(!allowGuestUploads)
+                      }
                     >
                       <span className="gd-toggle-knob" />
                     </button>
@@ -743,9 +818,20 @@ function GalleryDetail() {
                   <div className="gd-setting-item">
                     <div className="gd-setting-info">
                       <h3>Pesan kenangan</h3>
-                      <p>Atur izin apakah tamu boleh mengirim pesan ucapan dan doa di galeri ini.</p>
-                      <span className={allowGuestMessages ? "gd-setting-status is-on" : "gd-setting-status"}>
-                        {allowGuestMessages ? "✓ Diizinkan" : "✕ Tidak diizinkan"}
+                      <p>
+                        Atur izin apakah tamu boleh mengirim pesan ucapan dan
+                        doa di galeri ini.
+                      </p>
+                      <span
+                        className={
+                          allowGuestMessages
+                            ? "gd-setting-status is-on"
+                            : "gd-setting-status"
+                        }
+                      >
+                        {allowGuestMessages
+                          ? "✓ Diizinkan"
+                          : "✕ Tidak diizinkan"}
                       </span>
                     </div>
 
@@ -755,20 +841,39 @@ function GalleryDetail() {
                       aria-checked={allowGuestMessages}
                       aria-label="Izinkan pesan kenangan dari tamu"
                       className={`gd-toggle ${allowGuestMessages ? "is-on" : ""}`}
-                      onClick={() => handleGuestMessagesChange(!allowGuestMessages)}
+                      onClick={() =>
+                        handleGuestMessagesChange(!allowGuestMessages)
+                      }
                     >
                       <span className="gd-toggle-knob" />
                     </button>
                   </div>
 
                   {/* FOTO SAMPUL PADA PENGATURAN */}
-                  <div className="gd-setting-item" style={{ flexDirection: "column", alignItems: "flex-start", gap: "14px" }}>
+                  <div
+                    className="gd-setting-item"
+                    style={{
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      gap: "14px",
+                    }}
+                  >
                     <div className="gd-setting-info">
                       <h3>Foto Sampul Galeri</h3>
-                      <p>Foto sampul utama yang dilihat tamu saat pertama kali membuka galeri Anda.</p>
+                      <p>
+                        Foto sampul utama yang dilihat tamu saat pertama kali
+                        membuka galeri Anda.
+                      </p>
                     </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "16px",
+                        flexWrap: "wrap",
+                      }}
+                    >
                       <img
                         src={gallery.image || fallbackCover}
                         alt="Sampul Galeri"
@@ -803,14 +908,17 @@ function GalleryDetail() {
                 </span>
                 <div>
                   <h2>QR untuk Tamu</h2>
-                  <p>Ajak tamu membagikan foto dan pesan kenangan melalui QR ini.</p>
+                  <p>
+                    Ajak tamu membagikan foto dan pesan kenangan melalui QR ini.
+                  </p>
                 </div>
               </div>
 
               {/* KARTU PREVIEW QR DENGAN KOTAK BERDESAIN (SIAP CETAK) */}
               <div
                 style={{
-                  background: "linear-gradient(145deg, #fdfbf7 0%, #faf3e8 100%)",
+                  background:
+                    "linear-gradient(145deg, #fdfbf7 0%, #faf3e8 100%)",
                   border: "2px solid #deb857",
                   borderRadius: "18px",
                   padding: "16px",
@@ -854,7 +962,14 @@ function GalleryDetail() {
                 >
                   {gallery.title}
                 </h3>
-                <p style={{ margin: "0 0 12px", fontSize: "11.5px", color: "#8a661c", fontWeight: 500 }}>
+                <p
+                  style={{
+                    margin: "0 0 12px",
+                    fontSize: "11.5px",
+                    color: "#8a661c",
+                    fontWeight: 500,
+                  }}
+                >
                   ✦ {gallery.category} • {gallery.date} ✦
                 </p>
 
@@ -889,7 +1004,8 @@ function GalleryDetail() {
                 <div
                   style={{
                     display: "inline-block",
-                    background: "linear-gradient(135deg, #d8ab3e 0%, #b5871f 100%)",
+                    background:
+                      "linear-gradient(135deg, #d8ab3e 0%, #b5871f 100%)",
                     color: "#ffffff",
                     borderRadius: "16px",
                     padding: "4px 14px",
@@ -904,7 +1020,14 @@ function GalleryDetail() {
               </div>
 
               <div className="gd-link-field">
-                <span style={{ fontSize: "11px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {guestUrl}
                 </span>
                 <button
@@ -912,7 +1035,11 @@ function GalleryDetail() {
                   aria-label="Salin link"
                   onClick={handleCopyLink}
                 >
-                  {copied ? <Check size={17} color="#2e7d32" /> : <Copy size={17} />}
+                  {copied ? (
+                    <Check size={17} color="#2e7d32" />
+                  ) : (
+                    <Copy size={17} />
+                  )}
                 </button>
               </div>
 
@@ -958,7 +1085,10 @@ function GalleryDetail() {
                 </span>
                 <div>
                   <h2>Paket Berlangganan</h2>
-                  <p>Tingkatkan paket untuk kapasitas tak terbatas & unduh foto HD.</p>
+                  <p>
+                    Tingkatkan paket untuk kapasitas tak terbatas & unduh foto
+                    HD.
+                  </p>
                 </div>
               </div>
 
@@ -1010,10 +1140,18 @@ function GalleryDetail() {
                 type="button"
                 className="gd-button gd-button-gold gd-full-button"
                 onClick={handleDownload}
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                }}
               >
                 <CreditCard size={18} />
-                <span>Pilih & Lanjutkan ({packageType === "premium" ? "Rp 50.000" : "Rp 19.000"})</span>
+                <span>
+                  Pilih & Lanjutkan (
+                  {packageType === "premium" ? "Rp 50.000" : "Rp 19.000"})
+                </span>
               </button>
             </section>
           </aside>
@@ -1022,10 +1160,7 @@ function GalleryDetail() {
 
       {/* MODAL UNGGAH FOTO */}
       {showUpload && (
-        <div
-          className="gd-modal-backdrop"
-          onClick={() => setShowUpload(false)}
-        >
+        <div className="gd-modal-backdrop" onClick={() => setShowUpload(false)}>
           <section
             className="gd-upload-modal"
             role="dialog"
@@ -1046,7 +1181,10 @@ function GalleryDetail() {
               <Upload size={28} />
             </div>
             <h2 id="gd-upload-title">Unggah Foto</h2>
-            <p>Pilih foto kenangan dari perangkat Anda untuk album "{gallery.title}".</p>
+            <p>
+              Pilih foto kenangan dari perangkat Anda untuk album "
+              {gallery.title}".
+            </p>
 
             <button
               type="button"
@@ -1110,7 +1248,10 @@ function GalleryDetail() {
                 {profileName.trim().charAt(0).toUpperCase() || userInitial}
               </span>
               <div>
-                <strong>Inisial Tampilan: {profileName.trim().charAt(0).toUpperCase() || userInitial}</strong>
+                <strong>
+                  Inisial Tampilan:{" "}
+                  {profileName.trim().charAt(0).toUpperCase() || userInitial}
+                </strong>
                 <p>Inisial ini akan muncul di pojok kanan atas navbar Anda.</p>
               </div>
             </div>
@@ -1180,11 +1321,15 @@ function GalleryDetail() {
         onClose={() => setShowMidtransModal(false)}
         planName={packageType === "premium" ? "Premium" : "Basic"}
         planPrice={packageType === "premium" ? 50000 : 19000}
-        planDuration={packageType === "premium" ? "30 hari akses" : "7 hari akses"}
+        planDuration={
+          packageType === "premium" ? "30 hari akses" : "7 hari akses"
+        }
         userEmail={user?.email || gallery.userEmail || "user@kenanganqr.com"}
         userName={user?.name || "Pengguna KenanganQR"}
         onPaymentSuccess={(info) => {
-          setNotice(`Pembayaran Midtrans berhasil (${info.orderId})! Paket ${info.planName} aktif.`);
+          setNotice(
+            `Pembayaran Midtrans berhasil (${info.orderId})! Paket ${info.planName} aktif.`,
+          );
         }}
       />
     </div>

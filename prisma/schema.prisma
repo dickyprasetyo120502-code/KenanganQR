@@ -31,13 +31,39 @@ model User {
   passwordHash String?   @map("password_hash")
   fullName     String    @map("full_name")
   avatarUrl    String?   @map("avatar_url")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+    createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  payments     Payment[]
 
   @@map("users")
   @@schema("public")
 }
 
+model Payment {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId               String    @unique @map("order_id")
+  userId                String    @map("user_id") @db.Uuid
+
+  planId                String    @map("plan_id")
+  planName              String    @map("plan_name")
+  amount                Int
+  durationDays          Int       @map("duration_days")
+
+  status                String    @default("PENDING")
+  midtransTransactionId String?   @map("midtrans_transaction_id")
+  paymentType           String?   @map("payment_type")
+  paidAt                DateTime? @map("paid_at") @db.Timestamptz
+
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, status])
+  @@map("payments")
+  @@schema("public")
+}
 
 model Gallery {
   id                 BigInt           @id
