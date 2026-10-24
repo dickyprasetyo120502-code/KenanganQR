@@ -1478,12 +1478,24 @@ app.post("/api/payments/notification", async (req, res) => {
 });
 
 
-// START SERVER
-app.listen(PORT, () => {
-  console.log("==================================================");
-  console.log(`🚀 [KenanganQR] Express.js Server berjalan di port ${PORT}`);
-  console.log(`🔗 Endpoint API: http://localhost:${PORT}/api/health`);
-  console.log(`💎 Prisma ORM: ${prisma ? "Aktif (Primary DB)" : "Menunggu DATABASE_URL valid"}`);
-  console.log(`📦 Supabase SDK: ${isSupabaseConfigured ? "Aktif (Storage & Fallback)" : "Belum Dikonfigurasi"}`);
-  console.log("==================================================");
-});
+
+export default app;
+
+// Jalankan server hanya untuk pengembangan lokal.
+// Pada Vercel, request akan ditangani oleh function.
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log("==================================================");
+    console.log(`[KenanganQR] Express.js Server berjalan di port ${PORT}`);
+    console.log(`Endpoint API: http://localhost:${PORT}/api/health`);
+    console.log(
+      `Prisma ORM: ${prisma ? "Aktif (Primary DB)" : "Menunggu DATABASE_URL valid"}`
+    );
+    console.log(
+      `Supabase SDK: ${
+        isSupabaseConfigured ? "Aktif (Storage & Fallback)" : "Belum Dikonfigurasi"
+      }`
+    );
+    console.log("==================================================");
+  });
+}
