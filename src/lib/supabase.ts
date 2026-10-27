@@ -34,7 +34,7 @@ export async function fetchAllGalleriesFromSupabase(
   userEmail?: string
 ): Promise<Gallery[]> {
   // 1. Coba ambil melalui Express Backend API terlebih dahulu jika ada
-  const apiData = await fetchGalleries();
+  const apiData = await fetchGalleries(userEmail);
   if (apiData !== null) {
     if (userEmail) {
       const lower = userEmail.trim().toLowerCase();
@@ -98,10 +98,11 @@ export async function fetchAllGalleriesFromSupabase(
 }
 
 export async function fetchGalleryFromSupabase(
-  id: number
+  id: number,
+  userEmail?: string
 ): Promise<Gallery | null> {
   // 1. Coba ambil dari Express Backend API
-  const apiGallery = await fetchGalleryById(id);
+  const apiGallery = await fetchGalleryById(id, userEmail);
   if (apiGallery) return apiGallery;
 
   // 2. Fallback langsung ke Supabase

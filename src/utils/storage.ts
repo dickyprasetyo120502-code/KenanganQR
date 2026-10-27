@@ -205,20 +205,28 @@ export function saveUserSubscription(
   userEmail: string,
   sub: { planId: string; planName: string; durationDays: number }
 ): void {
-  const key = `kenanganqr-sub-${userEmail.trim().toLowerCase()}`;
+  const cleanEmail = userEmail.trim().toLowerCase();
+  const key = `kenanganqr-sub-${cleanEmail}`;
   const expiresAt = new Date(
     Date.now() + sub.durationDays * 24 * 60 * 60 * 1000
   ).toISOString();
-  localStorage.setItem(
-    key,
-    JSON.stringify({
-      isSubscribed: true,
-      planId: sub.planId,
-      planName: sub.planName,
-      expiresAt,
-      canDownload: true,
-    })
-  );
+  const data = {
+    isSubscribed: true,
+    planId: sub.planId,
+    planName: sub.planName,
+    expiresAt,
+    canDownload: true,
+  };
+  localStorage.setItem(key, JSON.stringify(data));
+
+  // Trigger event agar UI komponen lain yang sedang aktif langsung sinkron tanpa perlu refresh manual
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("kenanganqr-subscription-updated", {
+        detail: { email: cleanEmail, ...data },
+      })
+    );
+  }
 }
 
 export async function fetchSubscriptionStatus(
@@ -229,8 +237,16 @@ export async function fetchSubscriptionStatus(
     return { isSubscribed: false, canDownload: false };
   }
 
+  const token = getAccessToken();
+
   try {
-    const res = await fetch(`/api/subscription/status?email=${encodeURIComponent(cleanEmail)}`);
+    const res = await fetch(`/api/subscription/status?email=${encodeURIComponent(cleanEmail)}`, {
+      headers: {
+        "x-user-email": cleanEmail,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
     if (res.ok) {
       const data = await res.json();
       if (data.isSubscribed) {
@@ -239,16 +255,32 @@ export async function fetchSubscriptionStatus(
           planName: data.planName || "Paket Berlangganan",
           durationDays: data.durationDays || 7,
         });
+
+        return {
+          isSubscribed: true,
+          planId: data.plan,
+          planName: data.planName,
+          expiresAt: data.expiresAt,
+          canDownload: true,
+        };
+      } else {
+        // Jika server mengembalikan false, cek apakah cache lokal masih valid aktif
+        const cached = getUserSubscription(cleanEmail);
+        if (cached.isSubscribed) {
+          return cached;
+        }
+
+        return {
+          isSubscribed: false,
+          planId: "free",
+          planName: undefined,
+          canDownload: false,
+        };
       }
-      return {
-        isSubscribed: Boolean(data.isSubscribed),
-        planId: data.plan,
-        planName: data.planName,
-        expiresAt: data.expiresAt,
-        canDownload: Boolean(data.isSubscribed),
-      };
     }
-  } catch {}
+  } catch (err) {
+    console.warn("Gagal fetch subscription status dari server:", err);
+  }
 
   return getUserSubscription(cleanEmail);
 }

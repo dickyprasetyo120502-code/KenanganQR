@@ -726,6 +726,11 @@ app.get("/api/galleries/:id", async (req, res) => {
 
   try {
     const rawId = req.params.id;
+    const reqEmail = (
+      req.query.email ||
+      req.headers["x-user-email"] ||
+      ""
+    ).trim().toLowerCase();
 
     if (prisma) {
       try {
@@ -738,7 +743,17 @@ app.get("/api/galleries/:id", async (req, res) => {
         });
 
         if (gallery) {
-          const subInfo = await checkUserSubscription(gallery.userEmail);
+          const emailToCheck = (gallery.userEmail || reqEmail || "").trim().toLowerCase();
+          // Jika userEmail di galeri belum terisi, otomatis kaitkan ke email pengguna aktif
+          if (!gallery.userEmail && reqEmail) {
+            prisma.gallery
+              .update({
+                where: { id: BigInt(rawId) },
+                data: { userEmail: reqEmail },
+              })
+              .catch(() => {});
+          }
+          const subInfo = await checkUserSubscription(emailToCheck);
           return res.json(formatGalleryResponse(gallery, subInfo));
         }
       } catch (prismaErr) {
@@ -761,7 +776,15 @@ app.get("/api/galleries/:id", async (req, res) => {
       return res.status(404).json({ error: "Galeri tidak ditemukan" });
     }
 
-    const subInfo = await checkUserSubscription(gallery.user_email);
+    const emailToCheck = (gallery.user_email || reqEmail || "").trim().toLowerCase();
+    if (!gallery.user_email && reqEmail) {
+      supabase
+        .from("galleries")
+        .update({ user_email: reqEmail })
+        .eq("id", Number(rawId))
+        .then(() => {});
+    }
+    const subInfo = await checkUserSubscription(emailToCheck);
     res.json(formatGalleryResponse(gallery, subInfo));
   } catch (err) {
     console.error("Server error on GET /api/galleries/:id:", err);
@@ -787,6 +810,13 @@ app.post("/api/galleries", async (req, res) => {
       allowGuestMessages,
     } = req.body;
 
+    const userEmail = (
+      req.body.userEmail ||
+      req.headers["x-user-email"] ||
+      req.query.email ||
+      ""
+    ).trim().toLowerCase();
+
     if (!title || !date) {
       return res.status(400).json({ error: "Judul dan tanggal wajib diisi." });
     }
@@ -805,6 +835,7 @@ app.post("/api/galleries", async (req, res) => {
             description: description || "",
             allowGuestUploads: allowGuestUploads !== false,
             allowGuestMessages: allowGuestMessages !== false,
+            ...(userEmail ? { userEmail } : {}),
           },
           create: {
             id: galleryId,
@@ -815,6 +846,7 @@ app.post("/api/galleries", async (req, res) => {
             description: description || "",
             allowGuestUploads: allowGuestUploads !== false,
             allowGuestMessages: allowGuestMessages !== false,
+            ...(userEmail ? { userEmail } : {}),
           },
           include: {
             photos: true,
@@ -822,9 +854,11 @@ app.post("/api/galleries", async (req, res) => {
           },
         });
 
+        const subInfo = await checkUserSubscription(savedGallery.userEmail || userEmail);
+
         return res.status(201).json({
           message: "Galeri berhasil disimpan via Prisma ORM!",
-          gallery: formatGalleryResponse(savedGallery),
+          gallery: formatGalleryResponse(savedGallery, subInfo),
         });
       } catch (prismaErr) {
         console.warn("Prisma error on POST /api/galleries, falling back to Supabase:", prismaErr.message);
@@ -848,6 +882,7 @@ app.post("/api/galleries", async (req, res) => {
         allow_guest_uploads: allowGuestUploads !== false,
         allow_guest_messages: allowGuestMessages !== false,
         updated_at: new Date().toISOString(),
+        ...(userEmail ? { user_email: userEmail } : {}),
       })
       .select()
       .single();
@@ -857,9 +892,11 @@ app.post("/api/galleries", async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
+    const subInfo = await checkUserSubscription(userEmail);
+
     res.status(201).json({
       message: "Galeri berhasil disimpan ke PostgreSQL!",
-      gallery: data,
+      gallery: formatGalleryResponse(data, subInfo),
     });
   } catch (err) {
     console.error("Server error on POST /api/galleries:", err);
@@ -888,6 +925,8 @@ app.put("/api/galleries/:id", async (req, res) => {
           updates.allowGuestUploads = req.body.allowGuestUploads;
         if (req.body.allowGuestMessages !== undefined)
           updates.allowGuestMessages = req.body.allowGuestMessages;
+        if (req.body.userEmail || req.headers["x-user-email"])
+          updates.userEmail = (req.body.userEmail || req.headers["x-user-email"]).trim().toLowerCase();
 
         const updated = await prisma.gallery.update({
           where: { id: BigInt(rawId) },
@@ -895,9 +934,11 @@ app.put("/api/galleries/:id", async (req, res) => {
           include: { photos: true, messages: true },
         });
 
+        const subInfo = await checkUserSubscription(updated.userEmail);
+
         return res.json({
           message: "Galeri berhasil diperbarui via Prisma!",
-          gallery: formatGalleryResponse(updated),
+          gallery: formatGalleryResponse(updated, subInfo),
         });
       } catch (prismaErr) {
         console.warn(`Prisma error on PUT /api/galleries/${rawId}, falling back to Supabase:`, prismaErr.message);
@@ -921,6 +962,8 @@ app.put("/api/galleries/:id", async (req, res) => {
       updates.allow_guest_uploads = req.body.allowGuestUploads;
     if (req.body.allowGuestMessages !== undefined)
       updates.allow_guest_messages = req.body.allowGuestMessages;
+    if (req.body.userEmail || req.headers["x-user-email"])
+      updates.user_email = (req.body.userEmail || req.headers["x-user-email"]).trim().toLowerCase();
 
     updates.updated_at = new Date().toISOString();
 
@@ -1647,11 +1690,22 @@ app.post("/api/payments/sync/:orderId", async (req, res) => {
 // GET /api/subscription/status - Cek status langganan akun
 app.get("/api/subscription/status", async (req, res) => {
   try {
-    const email = (
+    let email = (
       req.query.email ||
       req.headers["x-user-email"] ||
       ""
     ).trim().toLowerCase();
+
+    // Jika email belum ada di query/header, periksa Bearer token
+    if (!email && req.headers.authorization?.startsWith("Bearer ")) {
+      try {
+        const token = req.headers.authorization.slice(7);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded?.email) {
+          email = decoded.email.trim().toLowerCase();
+        }
+      } catch {}
+    }
 
     if (!email) {
       return res.json({

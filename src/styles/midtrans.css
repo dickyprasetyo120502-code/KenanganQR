@@ -29,6 +29,12 @@
   }
 }
 
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .midtrans-modal {
   width: 100%;
   max-width: 680px;

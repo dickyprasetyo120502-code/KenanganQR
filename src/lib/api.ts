@@ -29,9 +29,15 @@ export async function checkServerHealth(): Promise<{
 /**
  * Ambil semua galeri dari backend Express
  */
-export async function fetchGalleries(): Promise<Gallery[] | null> {
+export async function fetchGalleries(userEmail?: string): Promise<Gallery[] | null> {
   try {
-    const res = await fetch(`${API_BASE}/galleries`);
+    const cleanEmail = (userEmail || "").trim().toLowerCase();
+    const query = cleanEmail ? `?email=${encodeURIComponent(cleanEmail)}` : "";
+    const res = await fetch(`${API_BASE}/galleries${query}`, {
+      headers: {
+        ...(cleanEmail ? { "x-user-email": cleanEmail } : {}),
+      },
+    });
     if (!res.ok) return null;
     const data = await res.json();
     return Array.isArray(data) ? data : null;
@@ -44,9 +50,15 @@ export async function fetchGalleries(): Promise<Gallery[] | null> {
 /**
  * Ambil satu galeri berdasarkan ID dari backend Express
  */
-export async function fetchGalleryById(id: number): Promise<Gallery | null> {
+export async function fetchGalleryById(id: number, userEmail?: string): Promise<Gallery | null> {
   try {
-    const res = await fetch(`${API_BASE}/galleries/${id}`);
+    const cleanEmail = (userEmail || "").trim().toLowerCase();
+    const query = cleanEmail ? `?email=${encodeURIComponent(cleanEmail)}` : "";
+    const res = await fetch(`${API_BASE}/galleries/${id}${query}`, {
+      headers: {
+        ...(cleanEmail ? { "x-user-email": cleanEmail } : {}),
+      },
+    });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {

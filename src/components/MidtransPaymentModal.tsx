@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   ShieldCheck,
@@ -7,9 +7,10 @@ import {
   AlertCircle,
   CheckCircle2,
   ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 
-import { getAccessToken, getUser } from "../utils/storage";
+import { getAccessToken, getUser, saveUserSubscription } from "../utils/storage";
 import { loadMidtransSnap } from "../utils/midtrans";
 import "../styles/midtrans.css";
 
@@ -57,22 +58,97 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
   const [paymentMessage, setPaymentMessage] = useState("");
   const [orderId, setOrderId] = useState("");
   const [redirectUrl, setRedirectUrl] = useState("");
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const orderCompletedRef = useRef(false);
 
   // Muat script Snap.js lebih awal begitu modal dibuka
   useEffect(() => {
     if (isOpen) {
       loadMidtransSnap();
+      orderCompletedRef.current = false;
     }
   }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const numericPrice =
     typeof planPrice === "number"
       ? planPrice
-      : Number(planPrice.replace(/[^0-9]/g, ""));
+      : Number(String(planPrice).replace(/[^0-9]/g, ""));
 
   const formattedPrice = `Rp ${numericPrice.toLocaleString("id-ID")}`;
+
+  // Fungsi sinkronisasi dan verifikasi status pembayaran
+  const checkOrderStatus = async (customOrderId?: string): Promise<boolean> => {
+    const activeOrderId = customOrderId || orderId;
+    if (!activeOrderId || orderCompletedRef.current) return false;
+
+    setIsCheckingStatus(true);
+    try {
+      const syncRes = await fetch(`/api/payments/sync/${activeOrderId}`, {
+        method: "POST",
+      });
+      const syncData = await syncRes.json();
+
+      if (syncData.status === "PAID" || syncData.status === "settlement") {
+        orderCompletedRef.current = true;
+        setPaymentMessage(
+          "Pembayaran berhasil terkonfirmasi! Paket langganan Anda telah aktif.",
+        );
+
+        const isPrem = planName.toLowerCase().includes("premium");
+        const currentUser = getUser();
+        const activeEmail = (propUserEmail || currentUser?.email || "").trim().toLowerCase();
+
+        if (activeEmail) {
+          saveUserSubscription(activeEmail, {
+            planId: isPrem ? "premium" : "basic",
+            planName: `Paket ${planName}`,
+            durationDays: isPrem ? 30 : 7,
+          });
+        }
+
+        if (onPaymentSuccess) {
+          onPaymentSuccess({
+            orderId: activeOrderId,
+            planName,
+            amount: numericPrice,
+          });
+        }
+
+        setTimeout(() => {
+          onClose();
+        }, 1600);
+        return true;
+      }
+    } catch (err) {
+      console.warn("Gagal cek status pembayaran:", err);
+    } finally {
+      setIsCheckingStatus(false);
+    }
+    return false;
+  };
+
+  // Auto-polling status saat orderId sudah dibuat (sangat berguna untuk simulator & QRIS)
+  useEffect(() => {
+    if (!orderId || !isOpen) return;
+
+    let pollCount = 0;
+    const maxPolls = 35; // ~105 detik
+    const interval = setInterval(async () => {
+      pollCount++;
+      if (pollCount > maxPolls || orderCompletedRef.current) {
+        clearInterval(interval);
+        return;
+      }
+      const isPaid = await checkOrderStatus(orderId);
+      if (isPaid) {
+        clearInterval(interval);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [orderId, isOpen]);
+
+  if (!isOpen) return null;
 
   const handleStartPayment = async () => {
     setErrorMessage("");
@@ -423,6 +499,38 @@ export const MidtransPaymentModal: React.FC<MidtransPaymentProps> = ({
               {orderId && (
                 <div style={{ marginTop: "8px", overflowWrap: "anywhere" }}>
                   Order ID: <strong>{orderId}</strong>
+                </div>
+              )}
+
+              {orderId && (
+                <div style={{ marginTop: "12px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => checkOrderStatus(orderId)}
+                    disabled={isCheckingStatus}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "7px 14px",
+                      background: "#0284c7",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      cursor: isCheckingStatus ? "not-allowed" : "pointer",
+                      boxShadow: "0 2px 6px rgba(2, 132, 199, 0.25)",
+                    }}
+                  >
+                    <RefreshCw
+                      size={13}
+                      style={{
+                        animation: isCheckingStatus ? "spin 1s linear infinite" : "none",
+                      }}
+                    />
+                    <span>{isCheckingStatus ? "Memeriksa Status..." : "Saya Sudah Bayar (Cek Status)"}</span>
+                  </button>
                 </div>
               )}
 

@@ -22,57 +22,128 @@ function createEmailTransporter() {
   });
 }
 
+import { createClient } from "@supabase/supabase-js";
+
+function getSupabaseFallbackClient() {
+  const rawUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "").trim();
+  const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, "").replace(/\/$/, "");
+  const supabaseKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || "").trim();
+  if (supabaseUrl && supabaseKey && supabaseUrl.startsWith("http") && !supabaseUrl.includes("your-project")) {
+    return createClient(supabaseUrl, supabaseKey);
+  }
+  return null;
+}
+
 /**
  * Cek apakah seorang user memiliki paket langganan aktif (status PAID dan belum kedaluwarsa)
  */
 export async function checkUserSubscription(userEmail) {
-  if (!userEmail || !prisma) {
+  if (!userEmail) {
     return { isSubscribed: false, plan: "free" };
   }
 
   const cleanEmail = userEmail.trim().toLowerCase();
 
-  try {
-    const activePayment = await prisma.payment.findFirst({
-      where: {
-        user: {
-          email: { equals: cleanEmail, mode: "insensitive" },
+  // 1. Coba periksa via Prisma ORM
+  if (prisma) {
+    try {
+      const activePayment = await prisma.payment.findFirst({
+        where: {
+          user: {
+            email: { equals: cleanEmail, mode: "insensitive" },
+          },
+          status: {
+            in: ["PAID", "paid", "SETTLEMENT", "settlement", "capture", "CAPTURE"],
+          },
         },
-        status: "PAID",
-      },
-      orderBy: { paidAt: "desc" },
-    });
+        orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+      });
 
-    if (!activePayment || !activePayment.paidAt) {
-      return { isSubscribed: false, plan: "free" };
+      if (activePayment) {
+        const paidAtDate = activePayment.paidAt || activePayment.createdAt || new Date();
+        const paidAtMs = new Date(paidAtDate).getTime();
+        const durationDays = activePayment.durationDays || 7;
+        const expiresAtMs = paidAtMs + durationDays * 24 * 60 * 60 * 1000;
+        const isStillActive = expiresAtMs > Date.now();
+
+        // Pastikan paidAt terisi jika sebelumnya bernilai null
+        if (!activePayment.paidAt) {
+          prisma.payment
+            .update({
+              where: { id: activePayment.id },
+              data: { paidAt: new Date(paidAtDate) },
+            })
+            .catch(() => {});
+        }
+
+        if (isStillActive) {
+          return {
+            isSubscribed: true,
+            plan: activePayment.planId,
+            planName: activePayment.planName,
+            paidAt: paidAtDate,
+            expiresAt: new Date(expiresAtMs).toISOString(),
+            durationDays,
+          };
+        }
+
+        return {
+          isSubscribed: false,
+          plan: "free",
+          expiredPlan: activePayment.planName,
+          expiredAt: new Date(expiresAtMs).toISOString(),
+        };
+      }
+    } catch (err) {
+      console.error("Gagal memeriksa status langganan via Prisma:", err.message);
     }
-
-    const paidAtMs = new Date(activePayment.paidAt).getTime();
-    const durationDays = activePayment.durationDays || 7;
-    const expiresAtMs = paidAtMs + durationDays * 24 * 60 * 60 * 1000;
-    const isStillActive = expiresAtMs > Date.now();
-
-    if (isStillActive) {
-      return {
-        isSubscribed: true,
-        plan: activePayment.planId,
-        planName: activePayment.planName,
-        paidAt: activePayment.paidAt,
-        expiresAt: new Date(expiresAtMs).toISOString(),
-        durationDays,
-      };
-    }
-
-    return {
-      isSubscribed: false,
-      plan: "free",
-      expiredPlan: activePayment.planName,
-      expiredAt: new Date(expiresAtMs).toISOString(),
-    };
-  } catch (err) {
-    console.error("Gagal memeriksa status langganan:", err.message);
-    return { isSubscribed: false, plan: "free" };
   }
+
+  // 2. Fallback: Cek via Supabase SDK jika Prisma gagal atau tidak tersedia
+  try {
+    const supabase = getSupabaseFallbackClient();
+    if (supabase) {
+      const { data: userRecord } = await supabase
+        .from("users")
+        .select("id")
+        .ilike("email", cleanEmail)
+        .maybeSingle();
+
+      if (userRecord?.id) {
+        const { data: payments } = await supabase
+          .from("payments")
+          .select("*")
+          .eq("user_id", userRecord.id)
+          .in("status", ["PAID", "paid", "SETTLEMENT", "settlement", "capture", "CAPTURE"])
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (payments && payments.length > 0) {
+          const p = payments[0];
+          const paidAtDate = p.paid_at || p.created_at || new Date();
+          const paidAtMs = new Date(paidAtDate).getTime();
+          const durationDays = p.duration_days || 7;
+          const expiresAtMs = paidAtMs + durationDays * 24 * 60 * 60 * 1000;
+          const isStillActive = expiresAtMs > Date.now();
+
+          if (isStillActive) {
+            return {
+              isSubscribed: true,
+              plan: p.plan_id,
+              planName: p.plan_name,
+              paidAt: paidAtDate,
+              expiresAt: new Date(expiresAtMs).toISOString(),
+              durationDays,
+            };
+          }
+        }
+      }
+    }
+  } catch (sbErr) {
+    console.error("Gagal memeriksa status langganan via Supabase fallback:", sbErr.message);
+  }
+
+  return { isSubscribed: false, plan: "free" };
 }
 
 /**

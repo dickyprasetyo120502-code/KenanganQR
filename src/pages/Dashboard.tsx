@@ -80,6 +80,15 @@ function Dashboard() {
       });
     }
 
+    // Listener jika status langganan diperbarui di modal atau tab lain
+    const handleSubUpdated = (e: Event) => {
+      const custom = e as CustomEvent;
+      if (custom.detail?.isSubscribed) {
+        setIsSubscribed(true);
+      }
+    };
+    window.addEventListener("kenanganqr-subscription-updated", handleSubUpdated);
+
     // Ambil HANYA galeri milik user yang sedang login
     if (isSupabaseConfigured) {
       fetchAllGalleriesFromSupabase(user.email).then((remote) => {
@@ -89,6 +98,10 @@ function Dashboard() {
         }
       });
     }
+
+    return () => {
+      window.removeEventListener("kenanganqr-subscription-updated", handleSubUpdated);
+    };
   }, [user?.email]);
 
   const [search, setSearch] = useState("");

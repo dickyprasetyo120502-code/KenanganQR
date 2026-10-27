@@ -141,9 +141,21 @@ function GalleryDetail() {
       });
     }
 
+    // Listener jika status langganan diperbarui di modal atau tab lain
+    const handleSubUpdated = (e: Event) => {
+      const custom = e as CustomEvent;
+      if (custom.detail?.isSubscribed) {
+        setIsSubscribed(true);
+        if (custom.detail?.planName) {
+          setSubscriptionPlan(custom.detail.planName);
+        }
+      }
+    };
+    window.addEventListener("kenanganqr-subscription-updated", handleSubUpdated);
+
     // 3. Ambil data terbaru dari Supabase/Backend jika ada queryId
     if (queryId) {
-      fetchGalleryFromSupabase(queryId).then((remote) => {
+      fetchGalleryFromSupabase(queryId, user?.email).then((remote) => {
         if (remote) {
           // Proteksi akses: jika album ini milik orang lain (userEmail berbeda),
           // alihkan user ke tampilan album tamu (/galeri?id=...) agar tidak bisa mengelola album orang lain
@@ -162,8 +174,8 @@ function GalleryDetail() {
           setMessages(remote.messagesList || []);
           setAllowGuestUploads(remote.allowGuestUploads ?? true);
           setAllowGuestMessages(remote.allowGuestMessages ?? true);
-          if (remote.isSubscribed !== undefined) {
-            setIsSubscribed(Boolean(remote.isSubscribed));
+          if (remote.isSubscribed) {
+            setIsSubscribed(true);
           }
           if (remote.daysActive !== undefined) {
             setDaysActive(remote.daysActive);
@@ -174,12 +186,16 @@ function GalleryDetail() {
           if (remote.photosPurged !== undefined) {
             setPhotosPurged(Boolean(remote.photosPurged));
           }
-          if (remote.subscriptionPlan) {
+          if (remote.subscriptionPlan && remote.subscriptionPlan !== "Gratis (Uji Coba 7 Hari)") {
             setSubscriptionPlan(remote.subscriptionPlan);
           }
         }
       });
     }
+
+    return () => {
+      window.removeEventListener("kenanganqr-subscription-updated", handleSubUpdated);
+    };
   }, [queryId, user?.email]);
 
   const [packageType, setPackageType] = useState<"basic" | "premium">("basic");
@@ -196,9 +212,13 @@ function GalleryDetail() {
     const cached = getUserSubscription(user?.email);
     return cached.isSubscribed || Boolean(gallery.isSubscribed);
   });
-  const [subscriptionPlan, setSubscriptionPlan] = useState<string>(
-    gallery.subscriptionPlan || "Gratis (Uji Coba 7 Hari)"
-  );
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string>(() => {
+    const cached = getUserSubscription(user?.email);
+    if (cached.isSubscribed && cached.planName) {
+      return cached.planName;
+    }
+    return gallery.subscriptionPlan || "Gratis (Uji Coba 7 Hari)";
+  });
   const [daysActive, setDaysActive] = useState<number>(gallery.daysActive ?? 0);
   const [daysRemaining, setDaysRemaining] = useState<number>(gallery.daysRemaining ?? 7);
   const [photosPurged, setPhotosPurged] = useState<boolean>(Boolean(gallery.photosPurged));
